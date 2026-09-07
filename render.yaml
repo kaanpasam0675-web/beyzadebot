@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: novabot
+    runtime: python
+    buildCommand: pip install -r requirements-linux.txt
+    startCommand: python dashboard/app.py
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: DASHBOARD_PORT
+        value: "5000"
+    autoDeploy: true
+    healthCheckPath: /login

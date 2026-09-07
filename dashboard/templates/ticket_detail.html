@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bilet #{{ ticket.id }} — Bot Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <h1>🎫 Bilet #{{ ticket.id }}</h1>
+      <div>
+        <a class="btn small" href="{{ url_for('home') }}">← Geri</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Bilgiler</h2>
+      <table class="table">
+        <tbody>
+          <tr><th>Kanal</th><td><code>#{{ ticket.channel_id }}</code></td></tr>
+          <tr><th>Sahip ID</th><td><code>{{ ticket.author_id }}</code></td></tr>
+          <tr><th>Görevli ID</th><td>{% if ticket.claimer_id %}<code>{{ ticket.claimer_id }}</code>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+          <tr><th>Durum</th><td>{% if ticket.status == 'open' %}<span class="dot green"></span> Açık{% else %}<span class="dot gray"></span> Kapalı{% endif %}</td></tr>
+          <tr><th>Açılış</th><td>{{ ticket.created_at[:16].replace('T', ' ') }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>💬 Yazışmalar ({{ messages|length }})</h2>
+      {% if messages %}
+        <div class="msg-list">
+          {% for m in messages %}
+            <div class="msg {{ 'bot' if m.is_bot else '' }}">
+              <div class="msg-head">
+                <strong>{{ m.author }}</strong>
+                <span class="muted small">{{ m.time }}</span>
+              </div>
+              <div class="msg-content">{{ m.content }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">Bu kanaldan mesaj alınamadı veya mesaj yok.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>⭐ Değerlendirmeler ({{ reviews|length }})</h2>
+      {% if reviews %}
+        <table class="table">
+          <thead>
+            <tr><th>Değerlendiren</th><th>Puan</th><th>Yorum</th><th>Tarih</th></tr>
+          </thead>
+          <tbody>
+            {% for r in reviews %}
+              <tr>
+                <td>{{ reviewer_names.get(r.reviewer_id, 'ID ' ~ r.reviewer_id) }}</td>
+                <td>{{ '★' * r.stars }}{{ '☆' * (5 - r.stars) }}</td>
+                <td>{{ r.comment or '—' }}</td>
+                <td class="muted small">{{ r.created_at[:16].replace('T', ' ') }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted">Henüz değerlendirme yok.</p>
+      {% endif %}
+
+      <h3>Değerlendirme ekle</h3>
+      <form method="post" action="{{ url_for('add_review_dash', ticket_id=ticket.id) }}">
+        <select name="stars" class="form-input">
+          <option value="1">⭐</option>
+          <option value="2">⭐⭐</option>
+          <option value="3">⭐⭐⭐</option>
+          <option value="4">⭐⭐⭐⭐</option>
+          <option value="5" selected>⭐⭐⭐⭐⭐</option>
+        </select>
+        <input type="text" name="comment" class="form-input" placeholder="Yorum (opsiyonel)" style="flex:1;">
+        <button class="btn primary" type="submit">Kaydet</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

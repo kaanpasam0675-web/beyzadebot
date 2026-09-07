@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🤖 Bot Dashboard</div>
+    <div class="topbar-right">
+      <a href="{{ url_for('logout') }}" class="btn ghost small">Çıkış</a>
+    </div>
+  </header>
+
+  <main class="container">
+    {% if not guilds %}
+      <div class="alert warn">
+        Henüz hiçbir sunucu bulunamadı. Botun bir sunucuya eklendiğinden emin ol
+        (Discord'da botu davet et) ve sayfayı yenile.
+      </div>
+    {% endif %}
+
+    {% if selected_guild %}
+      <section class="card">
+        <div class="guild-select">
+          <form method="post" action="{{ url_for('switch_guild') }}">
+            <label>Sunucu:</label>
+            <select name="guild_id" onchange="this.form.submit()">
+              {% for g in guilds %}
+                <option value="{{ g.id }}" {% if g.id == selected_guild.id %}selected{% endif %}>
+                  {{ g.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </form>
+          <span class="badge">Prefix: <strong>{{ settings.prefix or '!' }}</strong></span>
+        </div>
+
+        <form method="post" action="{{ url_for('update_prefix') }}" class="inline-form">
+          <input type="text" name="prefix" value="{{ settings.prefix or '!' }}" maxlength="5" placeholder="Prefix">
+          <button class="btn small" type="submit">Prefix Değiştir</button>
+        </form>
+      </section>
+
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="commands">📋 Komutlar</button>
+        <button class="tab-btn" data-tab="tickets">🎫 Ticketler <span class="pill">{{ tickets|selectattr('status','eq','open')|list|length }}/{{ tickets|length }}</span></button>
+        <button class="tab-btn" data-tab="modlog">🛡️ Moderasyon <span class="pill">{{ mod_logs|length }}</span></button>
+        <button class="tab-btn" data-tab="botctl">🤖 Bot Kontrol</button>
+      </nav>
+
+      <!-- KOMUTLAR -->
+      <div class="tab-panel active" id="tab-commands">
+        <div class="grid">
+          <div class="card">
+            <h2>➕ Yeni Özel Komut</h2>
+            <p class="muted small">Kullanıcı <code>!komutadi</code> yazdığında bot burada tanımladığın işlemleri yapar.</p>
+            <form method="post" action="{{ url_for('add_command') }}" class="stack">
+              <label>Komut Adı (harf/sayı, prefix'siz)</label>
+              <input type="text" name="name" required pattern="[A-Za-z0-9]+" placeholder="orn: selam">
+
+              <label>Yanıt Metni</label>
+              <input type="text" name="response_text" placeholder="Merhaba {mention}!">
+              <span class="hint">{user} {mention} {id} {args} {server} kullanılabilir.</span>
+
+              <label>Embed Başlığı (opsiyonel)</label>
+              <input type="text" name="embed_title" placeholder="Başlık">
+              <label>Embed Açıklaması (opsiyonel)</label>
+              <textarea name="embed_description" rows="2" placeholder="Açıklama metni"></textarea>
+              <label>Embed Rengi</label>
+              <input type="color" name="embed_color" value="#5865F2">
+
+              <label>İşlem (Aksiyon)</label>
+              <select name="action_type">
+                <option value="reply">Yanıt ver (yalnızca mesaj)</option>
+                <option value="rol-ver">Rol ver</option>
+                <option value="rol-al">Rol al</option>
+                <option value="sustur">Sustur</option>
+                <option value="ban">Yasakla</option>
+                <option value="kick">At (kick)</option>
+                <option value="mesaj-gonder">Mesaj gönder</option>
+              </select>
+
+              <label>Hedef Kullanıcı (aksiyon için)</label>
+              <input type="text" name="target_value" placeholder="Kullanıcı adı veya ID">
+
+              <label>Değer (aksiyona göre)</label>
+              <input type="text" name="action_value" placeholder="Rol adı / dakika / mesaj">
+              <span class="hint">Rol için rol adı veya ID • Susturma için dakika sayısı</span>
+
+              <label class="check"><input type="checkbox" name="enabled" checked> Komut aktif</label>
+              <button class="btn primary" type="submit">Komutu Kaydet</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h2>📋 Özel Komutlar ({{ commands|length }})</h2>
+            <div class="list-actions">
+              <span class="muted small">Her komut hem <code>?adi</code> hem de <code>/adi</code> ile çalışır.</span>
+              <form method="post" action="{{ url_for('sync_commands') }}">
+                <button class="btn small" type="submit">🔄 Slack Komutları Eşitle</button>
+              </form>
+            </div>
+            {% if commands %}
+              <table class="table">
+                <thead>
+                  <tr><th>Komut</th><th>Slash</th><th>İşlem</th><th>Durum</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {% for c in commands %}
+                    <tr>
+                      <td><code>{{ settings.prefix or '!' }}{{ c.name }}</code></td>
+                      <td><code>/{{ c.name }}</code></td>
+                      <td>{{ c.action_type }}</td>
+                      <td>{% if c.enabled %}<span class="dot green"></span> Aktif{% else %}<span class="dot gray"></span> Pasif{% endif %}</td>
+                      <td>
+                        <form method="post" action="{{ url_for('delete_command') }}" onsubmit="return confirm('{{ c.name }} komutu silinsin mi?')">
+                          <input type="hidden" name="name" value="{{ c.name }}">
+                          <button class="btn danger small" type="submit">Sil</button>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="muted">Henüz özel komut yok. Soldaki form ile ekle.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- TICKETLER -->
+      <div class="tab-panel" id="tab-tickets">
+        <div class="card">
+          <h2>🎫 Ticketler</h2>
+          {% if tickets %}
+            <table class="table">
+              <thead>
+                <tr><th>#</th><th>Kanal</th><th>Sahip</th><th>Görevli</th><th>Durum</th><th>Açılış</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for t in tickets %}
+                  <tr>
+                    <td>#{{ t.id }}</td>
+                    <td><code>#{{ t.channel_id }}</code></td>
+                    <td>{{ t.author_name }}</td>
+                    <td>{% if t.claimer_name and t.claimer_name != '-' %}{{ t.claimer_name }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                    <td>{% if t.status == 'open' %}<span class="dot green"></span> Açık{% else %}<span class="dot gray"></span> Kapalı{% endif %}</td>
+                    <td class="muted small">{{ t.created_at[:16].replace('T', ' ') }}</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="btn small" href="{{ url_for('ticket_detail', ticket_id=t.id) }}">Görüntüle</a>
+                      {% if t.status == 'open' %}
+                          <form method="post" action="{{ url_for('close_ticket_dash') }}" onsubmit="return confirm('Bu bilet kapatılsın ve kanal silinsin mi?')">
+                            <input type="hidden" name="channel_id" value="{{ t.channel_id }}">
+                            <button class="btn danger small" type="submit">Kapat</button>
+                          </form>
+                          <form method="post" action="{{ url_for('delete_ticket_dash') }}" onsubmit="return confirm('Bu ticket kaydı kalıcı silinsin mi?')">
+                            <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                            <button class="btn danger small" type="submit">Sil</button>
+                          </form>
+                        {% else %}
+                          <form method="post" action="{{ url_for('delete_ticket_dash') }}" onsubmit="return confirm('Bu ticket kaydı kalıcı silinsin mi?')">
+                            <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                            <button class="btn danger small" type="submit">Sil</button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="muted">Henüz ticket yok. Discord'da <code>!ticket</code> komutu ile bilet açılır.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- MODERASYON -->
+      <div class="tab-panel" id="tab-modlog">
+        <div class="card">
+          <h2>🛡️ Moderasyon Kayıtları</h2>
+          <p class="muted small">Ban, kick, uyarı, susturma ve temizleme işlemleri burada listelenir.</p>
+            {% if mod_logs %}
+            <table class="table">
+              <thead>
+                <tr><th>İşlem</th><th>Hedef</th><th>Yapan</th><th>Sebep</th><th>Tarih</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for m in mod_logs %}
+                  <tr>
+                    <td><span class="action-tag action-{{ m.action }}">{{ m.action }}</span></td>
+                    <td>{{ m.target_name or ('<@' ~ m.user_id ~ '>') }}</td>
+                    <td>{{ m.moderator_name }} <span class="muted small">(<code>{{ m.moderator_id }}</code>)</span></td>
+                    <td class="small">{{ m.reason or '—' }}</td>
+                    <td class="muted small">{{ m.created_at[:16].replace('T', ' ') }}</td>
+                    <td>
+                      <form method="post" action="{{ url_for('delete_modlog_dash') }}" onsubmit="return confirm('Bu kayıt silinsin mi?')">
+                        <input type="hidden" name="log_id" value="{{ m.id }}">
+                        <button class="btn danger small" type="submit">Sil</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <p class="muted">Henüz moderasyon kaydı yok. Discord'da moderasyon komutlarını kullandıkça burada görünür.</p>
+            {% endif %}
+        </div>
+
+        <div class="card">
+          <h2>⚠️ Uyarılar</h2>
+          {% if warnings %}
+            <table class="table">
+              <thead>
+                <tr><th>#</th><th>Kullanıcı</th><th>Sebep</th><th>Tarih</th><th>Yapan</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for w in warnings %}
+                  <tr>
+                    <td>#{{ w.id }}</td>
+                    <td><code>{{ w.user_id }}</code></td>
+                    <td class="small">{{ w.reason }}</td>
+                    <td class="muted small">{{ w.created_at[:16].replace('T', ' ') }}</td>
+                    <td><code>{{ w.moderator_id }}</code></td>
+                    <td>
+                      <form method="post" action="{{ url_for('delete_warning_dash') }}" onsubmit="return confirm('Bu uyarı silinsin mi?')">
+                        <input type="hidden" name="warning_id" value="{{ w.id }}">
+                        <button class="btn danger small" type="submit">Sil</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="muted">Henüz uyarı yok.</p>
+          {% endif %}
+        </div>
+      </div>
+    <!-- BOT KONTROL -->
+      <div class="tab-panel" id="tab-botctl">
+        <div class="grid">
+          <div class="card">
+            <h2>🤖 Bot Hesabı</h2>
+            {% if bot_status %}
+              <div class="bot-profile">
+                {% if bot_status.avatar %}<img class="bot-avatar" src="{{ bot_status.avatar }}" alt="avatar">{% endif %}
+                <div>
+                  <div class="bot-name">{{ bot_status.name }}</div>
+                  <div class="muted small">Sunucu sayısı: {{ bot_status.guild_count }} • Gecikme: {{ bot_status.ping }} ms</div>
+                  <div>
+                    {% if bot_status.ready %}<span class="dot green"></span> Çevrimiçi{% else %}<span class="dot gray"></span> Çevrimdışı{% endif %}
+                  </div>
+                  {% if bot_status.activity_name %}
+                    <div class="muted small">🎮 {{ bot_status.activity_type }}: <strong>{{ bot_status.activity_name }}</strong></div>
+                  {% else %}
+                    <div class="muted small">🎮 Durum: <em>Yok</em></div>
+                  {% endif %}
+                </div>
+              </div>
+              <hr>
+
+              <div class="card-inner">
+                <h3>🖼️ Profili Düzenle</h3>
+                <form method="post" action="{{ url_for('edit_profile') }}" enctype="multipart/form-data" class="stack">
+                  <label>Kullanıcı Adı</label>
+                  <input type="text" name="username" value="{{ bot_status.name }}" placeholder="Yeni isim">
+                  <label>Açıklama (Bio)</label>
+                  <textarea name="bio" rows="2" placeholder="Profili açıklaması (isteğe bağlı)" maxlength="190"></textarea>
+                  <label>Profil Fotoğrafı</label>
+                  <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp">
+                  <label>Banner</label>
+                  <input type="file" name="banner" accept="image/png,image/jpeg,image/webp">
+                  <button class="btn primary" type="submit">Kaydet</button>
+                </form>
+                <p class="muted small">İsim değişikliği Discord tarafından sınırlandırılır. Görseller PNG/JPEG olmalı.</p>
+              </div>
+              <hr>
+                <form method="post" action="{{ url_for('set_status') }}" class="stack">
+                  <label>Aktivite Türü</label>
+                  <select name="activity_type">
+                    <option value="playing">Oynuyor</option>
+                    <option value="listening">Dinliyor</option>
+                    <option value="watching">İzliyor</option>
+                    <option value="streaming">Yayında</option>
+                    <option value="competing">Yarışıyor</option>
+                    <option value="custom">Özel Durum (Custom Status)</option>
+                  </select>
+                  <label>Durum Metni (boş bırakılırsa aktivite kapatılır)</label>
+                  <input type="text" name="status_text" placeholder="Örn: Nova Bot'u Yönetiyor" value="{{ bot_status.activity_name or '' }}">
+                  <label>Statü</label>
+                  <select name="presence_status">
+                    <option value="online">Çevrimiçi 🟢</option>
+                    <option value="idle">Boşta 🌙</option>
+                    <option value="dnd">Rahatsız Etmeyin 🔴</option>
+                    <option value="invisible">Görünmez ⚫</option>
+                  </select>
+                  <button class="btn primary" type="submit">Uygula</button>
+                </form>
+              </div>
+              <hr>
+              <div class="muted small">
+                <div>🏰 Sunucu: <strong>{{ bot_status.guild_name }}</strong></div>
+                <div>🆔 Sunucu ID: <code>{{ bot_status.guild_id }}</code></div>
+                <div>👥 Üye sayısı: <strong>{{ bot_status.guild_members }}</strong></div>
+              </div>
+            {% else %}
+              <p class="muted">Bot bağlantısı kurulamadı. Dashboard ile bot aynı süreç içinde çalışmalı.</p>
+            {% endif %}
+          </div>
+
+          <div class="card">
+            <h2>✉️ Bot Hesabından Mesaj Gönder</h2>
+            <p class="muted small">Sunucudaki bir kanala botun hesabıyla düz mesaj veya embed gönderilebilir.</p>
+            {% if emojis %}
+              <div class="emoji-picker">
+                {% for e in emojis %}
+                  <button type="button" class="emoji-btn" title=":{{ e.name }}:" data-emoji="{{ e.mention }}">
+                    <img src="{{ e.preview }}" alt="{{ e.name }}" width="22" height="22">
+                  </button>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="muted small">Bu sunucuda özel emoji yok.</p>
+            {% endif %}
+
+            <div class="mini-tabs" role="tablist">
+              <button type="button" class="mini-tab-btn active" data-minitab="plain">Normal Mesaj</button>
+              <button type="button" class="mini-tab-btn" data-minitab="embed">Embed Mesaj</button>
+            </div>
+
+            <div id="mini-plain" class="mini-panel active">
+              <form method="post" action="{{ url_for('send_message') }}" class="stack">
+                <input type="hidden" name="msg_type" value="plain">
+                <label>Kanal</label>
+                {% if channels %}
+                  <select name="channel_id">
+                    {% for ch in channels %}
+                      <option value="{{ ch.id }}">#{{ ch.name }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input type="text" name="channel_id" placeholder="Kanal ID" required>
+                {% endif %}
+                <label>Mesaj</label>
+                <textarea id="msg-plain" name="message" rows="3" placeholder="Gönderilecek mesaj..." required></textarea>
+                <button class="btn primary" type="submit">Gönder</button>
+              </form>
+            </div>
+
+            <div id="mini-embed" class="mini-panel">
+              <form method="post" action="{{ url_for('send_message') }}" class="stack">
+                <input type="hidden" name="msg_type" value="embed">
+                <label>Kanal</label>
+                {% if channels %}
+                  <select name="channel_id">
+                    {% for ch in channels %}
+                      <option value="{{ ch.id }}">#{{ ch.name }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input type="text" name="channel_id" placeholder="Kanal ID" required>
+                {% endif %}
+                <label>Baslık</label>
+                <input type="text" name="embed_title" placeholder="Embed başlığı (opsiyonel)">
+                <label>Açıklama</label>
+                <textarea name="embed_description" rows="4" placeholder="Embed açıklaması..." required></textarea>
+                <label>Renk</label>
+                <input type="color" name="embed_color" value="#5865F2">
+                <button class="btn primary" type="submit">Gönder</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </main>
+
+  <script>
+    document.querySelectorAll('.tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    document.querySelectorAll('.mini-tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.mini-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        document.querySelectorAll('.mini-panel').forEach(function (p) { p.classList.remove('active'); });
+        btn.classList.add('active');
+        document.getElementById('mini-' + btn.dataset.minitab).classList.add('active');
+      });
+    });
+
+    document.querySelectorAll('.emoji-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.querySelector('.mini-panel.active textarea[name=message], .mini-panel.active textarea[name=embed_description]');
+        if (!target) return;
+        target.value += (target.value.length ? ' ' : '') + btn.dataset.emoji;
+        target.focus();
+      });
+    });
+  </script>
+</body>
+</html>
