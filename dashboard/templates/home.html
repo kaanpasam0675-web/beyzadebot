@@ -10,6 +10,15 @@
   <header class="topbar">
     <div class="brand">🤖 Bot Dashboard</div>
     <div class="topbar-right">
+      {% if oauth_user %}
+        <span class="badge">
+          {% if oauth_user.avatar %}<img src="{{ oauth_user.avatar }}" alt="" class="avatar-mini">{% endif %}
+          {{ oauth_user.global_name or oauth_user.username }}
+        </span>
+      {% endif %}
+      {% if invite_url %}
+        <a href="{{ invite_url }}" target="_blank" rel="noopener" class="btn success small">➕ Uygulamayı Ekle</a>
+      {% endif %}
       <a href="{{ url_for('logout') }}" class="btn ghost small">Çıkış</a>
     </div>
   </header>

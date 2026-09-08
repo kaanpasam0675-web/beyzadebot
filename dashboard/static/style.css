@@ -177,6 +177,8 @@ form.stack input[type="color"] {
 .btn:hover { filter: brightness(1.1); }
 .btn.primary { background: var(--accent); }
 .btn.danger { background: var(--red); }
+.btn.success { background: #2ecc71; }
+.btn.discord-btn { background: #5865F2; display: inline-block; }
 .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .btn.small { padding: 6px 12px; font-size: 13px; }
 .btn.primary + .btn, .btn + .btn { margin-top: 8px; }
@@ -280,6 +282,7 @@ form.stack input[type="color"] {
 }
 .login-card .btn { margin-top: 4px; }
 code { background: var(--bg); padding: 2px 6px; border-radius: 5px; font-size: .9em; }
+.avatar-mini { width: 22px; height: 22px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
 
 /* Bilet detayı */
 .form-input {

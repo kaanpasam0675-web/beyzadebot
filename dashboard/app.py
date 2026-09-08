@@ -2,6 +2,9 @@ import functools
 import os
 import sys
 import asyncio
+import json
+import urllib.parse
+import urllib.request
 
 import discord
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
@@ -21,7 +24,7 @@ BOT_THREAD = None
 def login_required(view):
     @functools.wraps(view)
     def wrapped(*args, **kwargs):
-        if not session.get("logged_in"):
+        if not session.get("logged_in") and not session.get("discord_user"):
             return redirect(url_for("login"))
         return view(*args, **kwargs)
 
@@ -30,6 +33,19 @@ def login_required(view):
 
 def current_guild_id():
     return int(session.get("guild_id", 0))
+
+
+def _discord_oauth_url():
+    """Discord authorize sayfasına yönlendiren URL."""
+    params = urllib.parse.urlencode(
+        {
+            "client_id": config.DISCORD_CLIENT_ID,
+            "redirect_uri": config.OAUTH_REDIRECT_URI,
+            "response_type": "code",
+            "scope": "identify guilds",
+        }
+    )
+    return f"https://discord.com/api/v10/oauth2/authorize?{params}"
 
 
 def _post_deleted_embed(guild_id, log_id, message_id=0):
@@ -86,7 +102,7 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if session.get("logged_in"):
+    if session.get("logged_in") or session.get("discord_user"):
         return redirect(url_for("home"))
     error = None
     if request.method == "POST":
@@ -95,7 +111,82 @@ def login():
             session["logged_in"] = True
             return redirect(url_for("home"))
         error = "Yanlış şifre."
-    return render_template("login.html", error=error)
+    oauth_url = _discord_oauth_url() if config.DISCORD_CLIENT_ID else None
+    return render_template("login.html", error=error, oauth_url=oauth_url)
+
+
+@app.route("/login/discord")
+def discord_login():
+    if not config.DISCORD_CLIENT_ID or not config.DISCORD_CLIENT_SECRET:
+        return "OAuth yapılandırılmamış (DISCORD_CLIENT_ID / SECRET eksik).", 500
+    return redirect(_discord_oauth_url())
+
+
+@app.route("/login/discord/callback")
+def discord_callback():
+    code = request.args.get("code")
+    state = request.args.get("state")
+    if not code:
+        return redirect(url_for("login"))
+    data = urllib.parse.urlencode(
+        {
+            "client_id": config.DISCORD_CLIENT_ID,
+            "client_secret": config.DISCORD_CLIENT_SECRET,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": config.OAUTH_REDIRECT_URI,
+        }
+    ).encode()
+    req = urllib.request.Request(
+        "https://discord.com/api/v10/oauth2/token",
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            token_data = json.loads(resp.read().decode())
+    except Exception as e:
+        return f"Token alınamadı: {e}", 500
+    access_token = token_data.get("access_token")
+    if not access_token:
+        return "OAuth doğrulaması başarısız.", 400
+    session["discord_user"] = _fetch_discord_identity(access_token)
+    session["discord_guilds"] = _fetch_discord_guilds(access_token)
+    session.pop("logged_in", None)
+    return redirect(url_for("home"))
+
+
+def _fetch_discord_identity(access_token):
+    req = urllib.request.Request(
+        "https://discord.com/api/v10/users/@me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read().decode())
+    return {
+        "id": int(data.get("id", 0)),
+        "username": data.get("username", "?"),
+        "global_name": data.get("global_name") or data.get("username", "?"),
+        "avatar": f"https://cdn.discordapp.com/avatars/{data.get('id')}/{data.get('avatar')}.png" if data.get("avatar") else None,
+    }
+
+
+def _fetch_discord_guilds(access_token):
+    """Kullanıcının yönetici (admin) olduğu sunucuların ID'lerini döndürür."""
+    req = urllib.request.Request(
+        "https://discord.com/api/v10/users/@me/guilds",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        guilds = json.loads(resp.read().decode())
+    admin_ids = []
+    for g in guilds:
+        permissions = int(g.get("permissions", 0))
+        is_admin = bool(permissions & 0x8)
+        is_owner = bool(g.get("owner"))
+        if is_admin or is_owner:
+            admin_ids.append(int(g["id"]))
+    return admin_ids
 
 
 @app.route("/logout")
@@ -158,6 +249,12 @@ def home():
                     "activity_name": bot.activity.name if bot.activity else None,
                     "activity_type": str(bot.activity.type) if bot.activity else None,
                 }
+    invite_url = (
+        f"https://discord.com/api/oauth2/authorize?client_id={config.DISCORD_CLIENT_ID}"
+        "&permissions=8&scope=bot%20applications.commands"
+        if config.DISCORD_CLIENT_ID
+        else None
+    )
     return render_template(
         "home.html",
         guilds=guilds,
@@ -170,6 +267,8 @@ def home():
         bot_status=bot_status,
         channels=channels,
         emojis=emojis if guild is not None else [],
+        invite_url=invite_url,
+        oauth_user=session.get("discord_user"),
     )
 
 
@@ -398,8 +497,13 @@ def add_review_dash(ticket_id):
 @login_required
 def switch_guild():
     guild_id = request.form.get("guild_id")
-    if guild_id and any(int(guild_id) == g["id"] for g in available_guilds()):
-        session["guild_id"] = int(guild_id)
+    try:
+        guild_id = int(guild_id or 0)
+    except ValueError:
+        guild_id = 0
+    allowed = available_guilds()
+    if guild_id and any(guild_id == g["id"] for g in allowed):
+        session["guild_id"] = guild_id
     return redirect(url_for("home"))
 
 
@@ -518,6 +622,10 @@ def available_guilds():
                     "member_count": g.member_count,
                 }
             )
+    # Discord OAuth kullanıcısı: yalnızca admin olduğu ve botun da olduğu sunucular
+    if session.get("discord_user"):
+        allowed = set(session.get("discord_guilds", []))
+        guilds = [g for g in guilds if g["id"] in allowed or not bot]
     if not guilds:
         import sqlite3
 
