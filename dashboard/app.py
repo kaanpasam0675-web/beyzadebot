@@ -412,6 +412,16 @@ def home():
         if config.DISCORD_CLIENT_ID
         else None
     )
+    # Global duyuru için: her sunucunun metin kanalları
+    guild_channel_map = {}
+    bot = get_bot()
+    if bot is not None:
+        for g in bot.guilds:
+            guild_channel_map[g.id] = [
+                {"id": ch.id, "name": ch.name}
+                for ch in g.text_channels
+                if ch.permissions_for(g.me).send_messages
+            ]
     return render_template(
         "home.html",
         guilds=guilds,
@@ -428,6 +438,7 @@ def home():
         oauth_user=session.get("discord_user"),
         is_owner=is_owner_session(),
         roles=roles,
+        guild_channel_map=guild_channel_map,
     )
 
 
@@ -580,7 +591,7 @@ def send_message():
 @app.route("/global-announce", methods=["POST"])
 @owner_required
 def global_announce():
-    """Sahip, botun bulunduğu TÜM sunuculara duyuru gönderir."""
+    """Sahip, botun bulunduğu TÜM sunucularda seçilen kanallara duyuru gönderir."""
     content = request.form.get("message", "").strip()
     msg_type = request.form.get("msg_type", "plain")
     if msg_type == "embed":
@@ -592,21 +603,28 @@ def global_announce():
     if bot is None or not bot.is_ready():
         return "Bot çevrimiçi değil.", 400
 
+    # Kullanıcının seçtiği kanallar: channel_{guild_id}
+    selected = {}
+    for key, value in request.form.items():
+        if key.startswith("channel_"):
+            try:
+                gid = int(key.split("_", 1)[1])
+            except ValueError:
+                continue
+            if value and value != "0":
+                selected[gid] = int(value)
+
     import asyncio
 
     result = {"sent": 0, "failed": []}
 
     async def _announce():
         for guild in bot.guilds:
-            # Sistem kanalı veya ilk yazılabilir metin kanalı
-            channel = guild.system_channel
-            if channel is None or not channel.permissions_for(guild.me).send_messages:
-                channel = next(
-                    (ch for ch in guild.text_channels if ch.permissions_for(guild.me).send_messages),
-                    None,
-                )
-            if channel is None:
-                result["failed"].append(guild.name)
+            if guild.id not in selected:
+                continue  # bu sunucu için kanal seçilmedi -> atla
+            channel = bot.get_channel(selected[guild.id])
+            if channel is None or getattr(channel, "guild", None) is None or channel.guild.id != guild.id:
+                result["failed"].append(f"{guild.name} (kanal bulunamadı)")
                 continue
             try:
                 if msg_type == "embed":

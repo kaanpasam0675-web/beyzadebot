@@ -414,21 +414,38 @@
 
           <div class="card">
             <h2>📢 Global Duyuru</h2>
-            <p class="muted small">Botun bulunduğu <strong>TÜM sunuculara</strong> tek seferde duyuru mesajı gönderir. Her sunucunun sistem kanalına (yoksa ilk uygun kanala) gönderilir.</p>
-            <div class="mini-tabs" role="tablist">
+            <p class="muted small">Her sunucu için gönderilecek kanalı seç. Kanal seçilmeyen sunucuya gönderilmez.</p>
+            {% for g in guilds %}
+              {% if guild_channel_map.get(g.id) %}
+              <div class="guild-choose" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+                <span class="muted small"><strong>{{ g.name }}</strong></span>
+                <select name="channel_{{ g.id }}" form="gform-plain" class="ch-sel">
+                  <option value="0">— gönderme —</option>
+                  {% for ch in guild_channel_map[g.id] %}
+                    <option value="{{ ch.id }}" {% if loop.first %}selected{% endif %}>#{{ ch.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% else %}
+              <div class="guild-choose" style="padding:6px 0;border-bottom:1px solid var(--border);">
+                <span class="muted small"><strong>{{ g.name }}</strong> <em>(yazılabilir kanal yok)</em></span>
+              </div>
+              {% endif %}
+            {% endfor %}
+            <div class="mini-tabs" role="tablist" style="margin-top:10px;">
               <button type="button" class="mini-tab-btn active" data-minitab="gplain">Normal Mesaj</button>
               <button type="button" class="mini-tab-btn" data-minitab="gembed">Embed Mesaj</button>
             </div>
             <div id="mini-gplain" class="mini-panel active">
-              <form method="post" action="{{ url_for('global_announce') }}" class="stack" onsubmit="return confirm('Duyuru TÜM sunuculara gönderilsin mi?')">
+              <form method="post" action="{{ url_for('global_announce') }}" class="stack" id="gform-plain" onsubmit="return confirm('Duyuru seçilen sunuculara gönderilsin mi?')">
                 <input type="hidden" name="msg_type" value="plain">
                 <label>Duyuru Metni</label>
-                <textarea name="message" rows="3" placeholder="Tüm sunuculara gönderilecek duyuru..." required></textarea>
-                <button class="btn primary" type="submit">Tüm Sunuculara Gönder</button>
+                <textarea name="message" rows="3" placeholder="Seçilen sunuculara gönderilecek duyuru..." required></textarea>
+                <button class="btn primary" type="submit">Seçilen Sunuculara Gönder</button>
               </form>
             </div>
             <div id="mini-gembed" class="mini-panel">
-              <form method="post" action="{{ url_for('global_announce') }}" class="stack" onsubmit="return confirm('Duyuru TÜM sunuculara gönderilsin mi?')">
+              <form method="post" action="{{ url_for('global_announce') }}" class="stack" id="gform-embed" onsubmit="return confirm('Duyuru seçilen sunuculara gönderilsin mi?')">
                 <input type="hidden" name="msg_type" value="embed">
                 <label>Başlık</label>
                 <input type="text" name="embed_title" placeholder="Embed başlığı (opsiyonel)">
@@ -436,7 +453,7 @@
                 <textarea name="embed_description" rows="4" placeholder="Embed açıklaması..." required></textarea>
                 <label>Renk</label>
                 <input type="color" name="embed_color" value="#5865F2">
-                <button class="btn primary" type="submit">Tüm Sunuculara Gönder</button>
+                <button class="btn primary" type="submit">Seçilen Sunuculara Gönder</button>
               </form>
             </div>
           </div>
@@ -505,6 +522,31 @@
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       });
+    });
+
+    // Global duyurunun iki formu da aynı kanal seçimlerini kullansın
+    function syncGuildChannels(srcFormId, dstFormId) {
+      var dst = document.getElementById(dstFormId);
+      if (!dst) return;
+      document.querySelectorAll('#gform-plain .ch-sel, .guild-choose select').forEach(function (sel) {
+        var name = sel.getAttribute('name');
+        var existing = dst.querySelector('input[name="' + name + '"]');
+        if (existing) {
+          existing.value = sel.value;
+        } else {
+          var inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = name;
+          inp.value = sel.value;
+          dst.appendChild(inp);
+        }
+      });
+    }
+    document.querySelectorAll('#gform-plain').forEach(function (f) {
+      f.addEventListener('change', function (e) { if (e.target.classList.contains('ch-sel')) syncGuildChannels('gform-plain', 'gform-embed'); });
+    });
+    document.getElementById('mini-gembed').addEventListener('submit', function () {
+      syncGuildChannels('gform-plain', 'gform-embed');
     });
 
     document.querySelectorAll('.mini-tab-btn').forEach(function (btn) {
