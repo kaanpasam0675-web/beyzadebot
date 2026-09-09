@@ -102,6 +102,10 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    # Şifre belirlenmediyse doğrudan içeri al
+    if not config.DASHBOARD_PASSWORD:
+        session["logged_in"] = True
+        return redirect(url_for("home"))
     if session.get("logged_in") or session.get("discord_user"):
         return redirect(url_for("home"))
     error = None
@@ -648,7 +652,6 @@ if __name__ == "__main__":
         print("[OK] Discord botu arka planda başlatıldı.")
     else:
         print("[UYARI] DISCORD_TOKEN boş. Lütfen .env dosyasını doldurun.")
-    port = int(os.getenv("PORT", config.DASHBOARD_PORT))
-    host = "0.0.0.0" if os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_SERVICE_ID") else "127.0.0.1"
-    print(f"[OK] Dashboard: http://{host}:{port}")
-    app.run(host=host, port=port, debug=False)
+    port = int(os.getenv("PORT") or config.DASHBOARD_PORT)
+    print(f"[OK] Dashboard: http://0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port, debug=False)

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
-DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin")
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
 AUTO_ROLE = os.getenv("AUTO_ROLE", "")
 MOD_LOG_CHANNEL_ID = 1546444871856955392
