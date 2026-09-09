@@ -31,6 +31,23 @@ def login_required(view):
     return wrapped
 
 
+def owner_required(view):
+    """Yalnızca şifreyle giriş yapan sahip erişebilir."""
+    @functools.wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("logged_in"):
+            if session.get("discord_user"):
+                return "Bu işlem için yalnızca sahip yetkilidir.", 403
+            return redirect(url_for("login"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def is_owner_session():
+    return bool(session.get("logged_in"))
+
+
 def current_guild_id():
     return int(session.get("guild_id", 0))
 
@@ -193,6 +210,123 @@ def _fetch_discord_guilds(access_token):
     return admin_ids
 
 
+@app.route("/guilds/leave", methods=["POST"])
+@owner_required
+def leave_guild():
+    gid = current_guild_id()
+    bot = get_bot()
+    if bot is None or not bot.is_ready():
+        return "Bot çevrimiçi değil.", 400
+    guild = bot.get_guild(gid)
+    if guild is None:
+        return "Sunucu bulunamadı.", 400
+
+    import asyncio
+
+    result = {}
+
+    async def _leave():
+        try:
+            await guild.leave()
+            result["ok"] = True
+        except Exception as e:
+            result["ok"] = False
+            result["error"] = repr(e)
+
+    fut = asyncio.run_coroutine_threadsafe(_leave(), bot.loop)
+    fut.result(timeout=20)
+    if not result.get("ok"):
+        return f"Hata: {result.get('error')}", 400
+    session.pop("guild_id", None)
+    return redirect(url_for("home"))
+
+
+@app.route("/guilds/join", methods=["POST"])
+@owner_required
+def join_guild():
+    invite_code = request.form.get("invite_code", "").strip()
+    if not invite_code:
+        return "Davet linki boş.", 400
+    bot = get_bot()
+    if bot is None or not bot.is_ready():
+        return "Bot çevrimiçi değil.", 400
+
+    import asyncio
+
+    result = {}
+
+    async def _join():
+        try:
+            invite = await bot.fetch_invite(invite_code)
+            await invite.accept()
+            result["ok"] = True
+            result["name"] = getattr(invite.guild, "name", "?")
+        except Exception as e:
+            result["ok"] = False
+            result["error"] = repr(e)
+
+    fut = asyncio.run_coroutine_threadsafe(_join(), bot.loop)
+    fut.result(timeout=25)
+    if not result.get("ok"):
+        return f"Hata: {result.get('error')}", 400
+    return redirect(url_for("home"))
+
+
+@app.route("/guilds/assign-role", methods=["POST"])
+@owner_required
+def assign_role():
+    """Sahip, seçili sunucuda bir Discord kullanıcısına (kendisine) rol verir."""
+    gid = current_guild_id()
+    role_id = request.form.get("role_id")
+    user_id = request.form.get("user_id", "").strip()
+    try:
+        role_id = int(role_id or 0)
+        target_user_id = int(user_id)
+    except (ValueError, TypeError):
+        return "Geçersiz rol/kullanıcı.", 400
+    if not role_id or not target_user_id:
+        return "Rol ve kullanıcı seçin.", 400
+    bot = get_bot()
+    if bot is None or not bot.is_ready():
+        return "Bot çevrimiçi değil.", 400
+    guild = bot.get_guild(gid)
+    if guild is None:
+        return "Sunucu bulunamadı.", 400
+
+    import asyncio
+
+    result = {}
+
+    async def _assign():
+        try:
+            member = guild.get_member(target_user_id)
+            if member is None:
+                try:
+                    member = await guild.fetch_member(target_user_id)
+                except Exception:
+                    member = None
+            if member is None:
+                result["ok"] = False
+                result["error"] = "Kullanıcı bu sunucuda bulunamadı."
+                return
+            role = discord.utils.get(guild.roles, id=role_id)
+            if role is None:
+                result["ok"] = False
+                result["error"] = "Rol bulunamadı."
+                return
+            await member.add_roles(role, reason="Dashboard'dan rol verildi")
+            result["ok"] = True
+        except Exception as e:
+            result["ok"] = False
+            result["error"] = repr(e)
+
+    fut = asyncio.run_coroutine_threadsafe(_assign(), bot.loop)
+    fut.result(timeout=20)
+    if not result.get("ok"):
+        return f"Hata: {result.get('error')}", 400
+    return redirect(url_for("home"))
+
+
 @app.route("/logout")
 def logout():
     session.clear()
@@ -215,6 +349,7 @@ def home():
     warnings = []
     bot_status = {}
     channels = []
+    roles = []
     if selected_guild:
         gid = selected_guild["id"]
         commands = database.get_all_custom_commands(gid)
@@ -230,6 +365,11 @@ def home():
                     {"id": ch.id, "name": ch.name}
                     for ch in guild.text_channels
                 ][:25]
+                roles = [
+                    {"id": r.id, "name": r.name}
+                    for r in sorted(guild.roles, key=lambda r: r.position, reverse=True)
+                    if not r.is_default() and not r.managed
+                ]
                 emojis = [
                     {
                         "name": e.name,
@@ -273,11 +413,13 @@ def home():
         emojis=emojis if guild is not None else [],
         invite_url=invite_url,
         oauth_user=session.get("discord_user"),
+        is_owner=is_owner_session(),
+        roles=roles,
     )
 
 
 @app.route("/edit-profile", methods=["POST"])
-@login_required
+@owner_required
 def edit_profile():
     bot = get_bot()
     if bot is None or not bot.is_ready():
@@ -326,7 +468,7 @@ def edit_profile():
 
 
 @app.route("/set-status", methods=["POST"])
-@login_required
+@owner_required
 def set_status():
     text = request.form.get("status_text", "").strip()
     act_type = request.form.get("activity_type", "playing")
@@ -369,7 +511,7 @@ def set_status():
 
 
 @app.route("/send-message", methods=["POST"])
-@login_required
+@owner_required
 def send_message():
     gid = current_guild_id()
     channel_id = int(request.form.get("channel_id", 0))
@@ -512,7 +654,7 @@ def switch_guild():
 
 
 @app.route("/commands/add", methods=["POST"])
-@login_required
+@owner_required
 def add_command():
     guild_id = current_guild_id()
     name = request.form.get("name", "").strip().lower()
@@ -534,7 +676,7 @@ def add_command():
 
 
 @app.route("/commands/delete", methods=["POST"])
-@login_required
+@owner_required
 def delete_command():
     name = request.form.get("name", "").strip().lower()
     database.delete_custom_command(current_guild_id(), name)
@@ -543,7 +685,7 @@ def delete_command():
 
 
 @app.route("/commands/sync", methods=["POST"])
-@login_required
+@owner_required
 def sync_commands():
     _slash_refresh(current_guild_id())
     return redirect(url_for("home"))
@@ -572,7 +714,7 @@ def close_ticket_dash():
 
 
 @app.route("/tickets/delete", methods=["POST"])
-@login_required
+@owner_required
 def delete_ticket_dash():
     ticket_id = int(request.form.get("ticket_id", 0))
     gid = current_guild_id()
@@ -582,7 +724,7 @@ def delete_ticket_dash():
 
 
 @app.route("/modlog/delete", methods=["POST"])
-@login_required
+@owner_required
 def delete_modlog_dash():
     log_id = int(request.form.get("log_id", 0))
     gid = current_guild_id()
@@ -594,7 +736,7 @@ def delete_modlog_dash():
 
 
 @app.route("/warnings/delete", methods=["POST"])
-@login_required
+@owner_required
 def delete_warning_dash():
     warning_id = int(request.form.get("warning_id", 0))
     if database.delete_warning(warning_id):
@@ -603,7 +745,7 @@ def delete_warning_dash():
 
 
 @app.route("/settings/prefix", methods=["POST"])
-@login_required
+@owner_required
 def update_prefix():
     new_prefix = request.form.get("prefix", "!").strip()
     if not new_prefix or len(new_prefix) > 5:

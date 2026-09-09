@@ -32,6 +32,11 @@
     {% endif %}
 
     {% if selected_guild %}
+      {% if not is_owner %}
+        <div class="alert info">
+          Discord ile giriş yaptın. Yalnızca moderasyon ve ticket yönetimine erişimin var. Komut/mesaj/bot kontrolü sahibe özeldir.
+        </div>
+      {% endif %}
       <section class="card">
         <div class="guild-select">
           <form method="post" action="{{ url_for('switch_guild') }}">
@@ -53,14 +58,20 @@
         </form>
       </section>
 
-      <nav class="tabs">
+<nav class="tabs">
+        {% if is_owner %}
         <button class="tab-btn active" data-tab="commands">📋 Komutlar</button>
-        <button class="tab-btn" data-tab="tickets">🎫 Ticketler <span class="pill">{{ tickets|selectattr('status','eq','open')|list|length }}/{{ tickets|length }}</span></button>
+        {% endif %}
+        <button class="tab-btn {% if not is_owner %}active{% endif %}" data-tab="tickets">🎫 Ticketler <span class="pill">{{ tickets|selectattr('status','eq','open')|list|length }}/{{ tickets|length }}</span></button>
         <button class="tab-btn" data-tab="modlog">🛡️ Moderasyon <span class="pill">{{ mod_logs|length }}</span></button>
+        {% if is_owner %}
         <button class="tab-btn" data-tab="botctl">🤖 Bot Kontrol</button>
+        <button class="tab-btn" data-tab="guildmanage">🏰 Sunucu</button>
+        {% endif %}
       </nav>
 
       <!-- KOMUTLAR -->
+      {% if is_owner %}
       <div class="tab-panel active" id="tab-commands">
         <div class="grid">
           <div class="card">
@@ -140,6 +151,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
       <!-- TICKETLER -->
       <div class="tab-panel" id="tab-tickets">
@@ -167,15 +179,19 @@
                             <input type="hidden" name="channel_id" value="{{ t.channel_id }}">
                             <button class="btn danger small" type="submit">Kapat</button>
                           </form>
+                          {% if is_owner %}
                           <form method="post" action="{{ url_for('delete_ticket_dash') }}" onsubmit="return confirm('Bu ticket kaydı kalıcı silinsin mi?')">
                             <input type="hidden" name="ticket_id" value="{{ t.id }}">
                             <button class="btn danger small" type="submit">Sil</button>
                           </form>
+                          {% endif %}
                         {% else %}
+                          {% if is_owner %}
                           <form method="post" action="{{ url_for('delete_ticket_dash') }}" onsubmit="return confirm('Bu ticket kaydı kalıcı silinsin mi?')">
                             <input type="hidden" name="ticket_id" value="{{ t.id }}">
                             <button class="btn danger small" type="submit">Sil</button>
                           </form>
+                          {% endif %}
                         {% endif %}
                       </div>
                     </td>
@@ -208,10 +224,14 @@
                     <td class="small">{{ m.reason or '—' }}</td>
                     <td class="muted small">{{ m.created_at[:16].replace('T', ' ') }}</td>
                     <td>
+                      {% if is_owner %}
                       <form method="post" action="{{ url_for('delete_modlog_dash') }}" onsubmit="return confirm('Bu kayıt silinsin mi?')">
                         <input type="hidden" name="log_id" value="{{ m.id }}">
                         <button class="btn danger small" type="submit">Sil</button>
                       </form>
+                      {% else %}
+                      <span class="muted small">—</span>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
@@ -238,10 +258,14 @@
                     <td class="muted small">{{ w.created_at[:16].replace('T', ' ') }}</td>
                     <td><code>{{ w.moderator_id }}</code></td>
                     <td>
+                      {% if is_owner %}
                       <form method="post" action="{{ url_for('delete_warning_dash') }}" onsubmit="return confirm('Bu uyarı silinsin mi?')">
                         <input type="hidden" name="warning_id" value="{{ w.id }}">
                         <button class="btn danger small" type="submit">Sil</button>
                       </form>
+                      {% else %}
+                      <span class="muted small">—</span>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}
@@ -253,6 +277,7 @@
         </div>
       </div>
     <!-- BOT KONTROL -->
+    {% if is_owner %}
       <div class="tab-panel" id="tab-botctl">
         <div class="grid">
           <div class="card">
@@ -388,7 +413,47 @@
           </div>
         </div>
       </div>
-    {% endif %}
+      {% endif %}
+
+      <!-- SUNUCU YÖNETİMİ (sahip) -->
+      <div class="tab-panel" id="tab-guildmanage">
+        <div class="grid">
+          <div class="card">
+            <h2>🏰 Sunucu Yönetimi</h2>
+            <p class="muted small">Bu panel yalnızca sahibe özeldir. Botun bulunduğu sunucuları yönetirsin.</p>
+
+            <h3>🚪 Sunucudan Çık</h3>
+            <p class="muted small">{{ selected_guild.name if selected_guild else '—' }} sunucusundan botu çıkarır.</p>
+            <form method="post" action="{{ url_for('leave_guild') }}" onsubmit="return confirm('Bot bu sunucudan çıkarılsın mı?')">
+              <button class="btn danger" type="submit">Çık</button>
+            </form>
+            <hr>
+
+            <h3>📥 Davet Linki ile Katıl</h3>
+            <form method="post" action="{{ url_for('join_guild') }}" class="stack">
+              <input type="text" name="invite_code" placeholder="discord.gg/abcdef veya https://discord.gg/...">
+              <button class="btn primary" type="submit">Sunucuya Katıl</button>
+            </form>
+            <hr>
+
+            <h3>🎖️ Kendine/Kullanıcıya Rol Ver</h3>
+            <form method="post" action="{{ url_for('assign_role') }}" class="stack">
+              <label>Kullanıcı ID</label>
+              <input type="text" name="user_id" placeholder="Discord kullanıcı ID (kendin için Discord'da üzerine sağ tık → Kimliği Kopyala)">
+              <label>Rol</label>
+              <select name="role_id">
+                {% for r in roles %}
+                  <option value="{{ r.id }}">{{ r.name }}</option>
+                {% else %}
+                  <option value="">Rol yüklenemedi (bot sunucuda olmalı)</option>
+                {% endfor %}
+              </select>
+              <button class="btn primary" type="submit">Rol Ver</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endif %}
   </main>
 
   <script>
