@@ -501,8 +501,16 @@
             </ul>
             <hr>
 
+            <h3>🏷️ Sunucu Etiketi (Tag)</h3>
+            <p class="muted small">Şu anki sunucuda botun adına eklenecek etiket: <strong>{{ settings.bot_tag or '—' }}</strong></p>
+            <form method="post" action="{{ url_for('set_bot_tag_route') }}" class="stack">
+              <input type="hidden" name="guild_id" value="{{ selected_guild.id }}">
+              <input type="text" name="bot_tag" value="{{ settings.bot_tag or '' }}" placeholder="Örn: ❤️ NOVA" maxlength="30">
+              <button class="btn primary" type="submit">Etiketi Uygula</button>
+            </form>
+            <hr>
+
             <h3>🎖️ Kendine/Kullanıcıya Rol Ver</h3>
-            <p class="muted small">Şu anki sunucu: <strong>{{ selected_guild.name }}</strong></p>
             <form method="post" action="{{ url_for('assign_role') }}" class="stack">
               <input type="hidden" name="guild_id" value="{{ selected_guild.id }}">
               <label>Kullanıcı ID</label>

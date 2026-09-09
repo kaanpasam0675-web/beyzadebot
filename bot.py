@@ -126,6 +126,17 @@ class Bot(commands.Bot):
                 print(f"[OK] '{role.name}' rolü oluşturuldu: {guild.name}")
         except Exception as e:
             print(f"[UYARI] rol oluşturulamadı ({guild.name}): {e}")
+        # Sunucu için tanımlı tag varsa botun o sunucudaki adını ayarla
+        try:
+            settings = database.get_guild_settings(guild.id)
+            tag = (settings.get("bot_tag") or "").strip()
+            if tag:
+                new_nick = f"{tag} {self.user.name}"
+                if guild.me.nick != new_nick:
+                    await guild.me.edit(nick=new_nick)
+                    print(f"[OK] Nickname '{new_nick}' olarak ayarlandı ({guild.name})")
+        except Exception as e:
+            print(f"[UYARI] nickname ayarlanamadı ({guild.name}): {e}")
 
     async def on_member_join(self, member):
         if member.bot:

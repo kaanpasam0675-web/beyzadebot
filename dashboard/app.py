@@ -318,6 +318,28 @@ def join_guild():
     return redirect(result["url"])
 
 
+@app.route("/guilds/set-tag", methods=["POST"])
+@owner_required
+def set_bot_tag_route():
+    """Sahip, seçili sunucu için botun kullanacağı etiketi (tag) ayarlar."""
+    gid = int(request.form.get("guild_id", 0) or current_guild_id())
+    tag = request.form.get("bot_tag", "").strip()
+    database.set_bot_tag(gid, tag)
+    bot = get_bot()
+    if bot is not None and bot.is_ready():
+        guild = bot.get_guild(gid)
+        if guild is not None and tag:
+            import asyncio
+
+            async def _nick():
+                new_nick = f"{tag} {bot.user.name}"
+                if guild.me.nick != new_nick:
+                    await guild.me.edit(nick=new_nick)
+
+            asyncio.run_coroutine_threadsafe(_nick(), bot.loop).result(timeout=20)
+    return redirect(url_for("home"))
+
+
 @app.route("/guilds/assign-role", methods=["POST"])
 @owner_required
 def assign_role():

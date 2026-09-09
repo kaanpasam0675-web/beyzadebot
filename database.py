@@ -24,7 +24,8 @@ def init_db() -> None:
                 prefix TEXT NOT NULL DEFAULT '!',
                 welcome_channel INTEGER,
                 welcome_message TEXT,
-                auto_role INTEGER DEFAULT 0
+                auto_role INTEGER DEFAULT 0,
+                bot_tag TEXT DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS levels (
@@ -102,6 +103,10 @@ def init_db() -> None:
         if log_cols and "message_id" not in log_cols:
             conn.execute("ALTER TABLE mod_log ADD COLUMN message_id INTEGER DEFAULT 0")
             conn.commit()
+        guild_cols = [r["name"] for r in conn.execute("PRAGMA table_info(guilds)").fetchall()]
+        if guild_cols and "bot_tag" not in guild_cols:
+            conn.execute("ALTER TABLE guilds ADD COLUMN bot_tag TEXT DEFAULT ''")
+            conn.commit()
         conn.close()
 
 
@@ -140,11 +145,23 @@ def get_guild_settings(guild_id: int):
         conn.execute("INSERT OR IGNORE INTO guilds (guild_id) VALUES (?)", (guild_id,))
         conn.commit()
         row = conn.execute(
-            "SELECT prefix, welcome_channel, welcome_message, auto_role FROM guilds WHERE guild_id = ?",
+            "SELECT prefix, welcome_channel, welcome_message, auto_role, bot_tag FROM guilds WHERE guild_id = ?",
             (guild_id,),
         ).fetchone()
         conn.close()
         return dict(row) if row else {}
+
+
+def set_bot_tag(guild_id: int, tag: str) -> None:
+    with _lock:
+        conn = _conn()
+        conn.execute(
+            """INSERT INTO guilds (guild_id, bot_tag) VALUES (?, ?)
+               ON CONFLICT(guild_id) DO UPDATE SET bot_tag = excluded.bot_tag""",
+            (guild_id, tag),
+        )
+        conn.commit()
+        conn.close()
 
 
 def set_welcome(guild_id: int, channel_id: int, message: str) -> None:
