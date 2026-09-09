@@ -213,7 +213,7 @@ def _fetch_discord_guilds(access_token):
 @app.route("/guilds/leave", methods=["POST"])
 @owner_required
 def leave_guild():
-    gid = current_guild_id()
+    gid = int(request.form.get("guild_id", 0) or current_guild_id())
     bot = get_bot()
     if bot is None or not bot.is_ready():
         return "Bot çevrimiçi değil.", 400
@@ -244,39 +244,46 @@ def leave_guild():
 @app.route("/guilds/join", methods=["POST"])
 @owner_required
 def join_guild():
-    invite_code = request.form.get("invite_code", "").strip()
-    if not invite_code:
-        return "Davet linki boş.", 400
+    """Bot, seçili sunucu için tek kullanımlık davet linki üretir; sen linke tıklayıp sunucuya girersin."""
+    gid = int(request.form.get("guild_id", 0) or current_guild_id())
     bot = get_bot()
     if bot is None or not bot.is_ready():
         return "Bot çevrimiçi değil.", 400
+    guild = bot.get_guild(gid)
+    if guild is None:
+        return "Sunucu bulunamadı.", 400
 
     import asyncio
 
     result = {}
 
-    async def _join():
+    async def _create():
         try:
-            invite = await bot.fetch_invite(invite_code)
-            await invite.accept()
-            result["ok"] = True
-            result["name"] = getattr(invite.guild, "name", "?")
+            for ch in guild.text_channels:
+                perms = ch.permissions_for(guild.me)
+                if perms.create_instant_invite:
+                    invite = await ch.create_invite(max_age=300, max_uses=1, reason="Dashboard'dan giriş")
+                    result["ok"] = True
+                    result["url"] = f"https://discord.gg/{invite.code}"
+                    return
+            result["ok"] = False
+            result["error"] = "Botun davet oluşturabildiği kanal yok (İzin eksik)."
         except Exception as e:
             result["ok"] = False
             result["error"] = repr(e)
 
-    fut = asyncio.run_coroutine_threadsafe(_join(), bot.loop)
-    fut.result(timeout=25)
+    fut = asyncio.run_coroutine_threadsafe(_create(), bot.loop)
+    fut.result(timeout=20)
     if not result.get("ok"):
         return f"Hata: {result.get('error')}", 400
-    return redirect(url_for("home"))
+    return redirect(result["url"])
 
 
 @app.route("/guilds/assign-role", methods=["POST"])
 @owner_required
 def assign_role():
     """Sahip, seçili sunucuda bir Discord kullanıcısına (kendisine) rol verir."""
-    gid = current_guild_id()
+    gid = int(request.form.get("guild_id", 0) or current_guild_id())
     role_id = request.form.get("role_id")
     user_id = request.form.get("user_id", "").strip()
     try:

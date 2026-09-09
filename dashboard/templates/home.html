@@ -420,24 +420,36 @@
         <div class="grid">
           <div class="card">
             <h2>🏰 Sunucu Yönetimi</h2>
-            <p class="muted small">Bu panel yalnızca sahibe özeldir. Botun bulunduğu sunucuları yönetirsin.</p>
-
-            <h3>🚪 Sunucudan Çık</h3>
-            <p class="muted small">{{ selected_guild.name if selected_guild else '—' }} sunucusundan botu çıkarır.</p>
-            <form method="post" action="{{ url_for('leave_guild') }}" onsubmit="return confirm('Bot bu sunucudan çıkarılsın mı?')">
-              <button class="btn danger" type="submit">Çık</button>
-            </form>
-            <hr>
-
-            <h3>📥 Davet Linki ile Katıl</h3>
-            <form method="post" action="{{ url_for('join_guild') }}" class="stack">
-              <input type="text" name="invite_code" placeholder="discord.gg/abcdef veya https://discord.gg/...">
-              <button class="btn primary" type="submit">Sunucuya Katıl</button>
-            </form>
+            <p class="muted small">Bu panel yalnızca sahibe özeldir. Botun bulunduğu her sunucu için:</p>
+            <ul class="stack" style="list-style:none;padding:0;">
+              {% for g in guilds %}
+                <li style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+                  <span>
+                    {% if g.icon %}<img src="{{ g.icon }}" alt="" width="24" height="24" style="border-radius:50%;vertical-align:middle;margin-right:6px;">{% endif %}
+                    <strong>{{ g.name }}</strong>
+                    <span class="muted small">({{ g.member_count }} üye)</span>
+                  </span>
+                  <span style="display:flex;gap:6px;">
+                    <form method="post" action="{{ url_for('join_guild') }}">
+                      <input type="hidden" name="guild_id" value="{{ g.id }}">
+                      <button class="btn success small" type="submit">🌐 Sunucuya Gir</button>
+                    </form>
+                    <form method="post" action="{{ url_for('leave_guild') }}" onsubmit="return confirm('Bot bu sunucudan çıkarılsın mı?')">
+                      <input type="hidden" name="guild_id" value="{{ g.id }}">
+                      <button class="btn danger small" type="submit">🚪 Botu Çıkar</button>
+                    </form>
+                  </span>
+                </li>
+              {% else %}
+                <li class="muted">Bot hiçbir sunucuda değil.</li>
+              {% endfor %}
+            </ul>
             <hr>
 
             <h3>🎖️ Kendine/Kullanıcıya Rol Ver</h3>
+            <p class="muted small">Şu anki sunucu: <strong>{{ selected_guild.name }}</strong></p>
             <form method="post" action="{{ url_for('assign_role') }}" class="stack">
+              <input type="hidden" name="guild_id" value="{{ selected_guild.id }}">
               <label>Kullanıcı ID</label>
               <input type="text" name="user_id" placeholder="Discord kullanıcı ID (kendin için Discord'da üzerine sağ tık → Kimliği Kopyala)">
               <label>Rol</label>
@@ -445,7 +457,7 @@
                 {% for r in roles %}
                   <option value="{{ r.id }}">{{ r.name }}</option>
                 {% else %}
-                  <option value="">Rol yüklenemedi (bot sunucuda olmalı)</option>
+                  <option value="">Rol yüklenemedi (bot sunucuda ve izne sahip olmalı)</option>
                 {% endfor %}
               </select>
               <button class="btn primary" type="submit">Rol Ver</button>
