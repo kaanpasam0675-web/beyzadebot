@@ -211,6 +211,44 @@ def _fetch_discord_guilds(access_token):
     return admin_ids
 
 
+@app.route("/guilds/bot-join", methods=["POST"])
+@owner_required
+def bot_join_guild():
+    """Sahip, verilen davet linkiyle BOT'u bir sunucuya katılır."""
+    invite_input = request.form.get("invite_code", "").strip()
+    if not invite_input:
+        return "Davet linki boş.", 400
+    # discord.gg/XXXX veya https://discord.gg/XXXX ya da sadece kod şeklinde olabilir
+    code = invite_input
+    if "/" in code:
+        code = code.split("/")[-1]
+    code = code.split("?")[0].strip()
+    bot = get_bot()
+    if bot is None or not bot.is_ready():
+        return "Bot çevrimiçi değil.", 400
+
+    import asyncio
+
+    result = {}
+
+    async def _join():
+        try:
+            invite = await bot.fetch_invite(code)
+            await invite.accept()
+            result["ok"] = True
+            guild_name = getattr(invite, "guild", None)
+            result["name"] = guild_name.name if guild_name else code
+        except Exception as e:
+            result["ok"] = False
+            result["error"] = repr(e)
+
+    fut = asyncio.run_coroutine_threadsafe(_join(), bot.loop)
+    fut.result(timeout=25)
+    if not result.get("ok"):
+        return f"Hata: {result.get('error')}", 400
+    return redirect(url_for("home"))
+
+
 @app.route("/guilds/leave", methods=["POST"])
 @owner_required
 def leave_guild():

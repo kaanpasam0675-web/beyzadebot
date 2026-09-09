@@ -467,6 +467,15 @@
           <div class="card">
             <h2>🏰 Sunucu Yönetimi</h2>
             <p class="muted small">Bu panel yalnızca sahibe özeldir. Botun bulunduğu her sunucu için:</p>
+
+            <h3>🤖 Botu Davet Linkiyle Kat</h3>
+            <p class="muted small">Bot, verdiğin davet linkiyle YENİ bir sunucuya katılır.</p>
+            <form method="post" action="{{ url_for('bot_join_guild') }}" class="stack">
+              <input type="text" name="invite_code" placeholder="https://discord.gg/XXXX veya kod" required>
+              <button class="btn success" type="submit">Botu Sunucuya Kat</button>
+            </form>
+            <hr>
+
             <ul class="stack" style="list-style:none;padding:0;">
               {% for g in guilds %}
                 <li style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
