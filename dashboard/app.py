@@ -133,7 +133,13 @@ def login():
             return redirect(url_for("home"))
         error = "Yanlış şifre."
     oauth_url = _discord_oauth_url() if config.DISCORD_CLIENT_ID else None
-    return render_template("login.html", error=error, oauth_url=oauth_url)
+    invite_url = (
+        f"https://discord.com/api/oauth2/authorize?client_id={config.DISCORD_CLIENT_ID}"
+        "&permissions=8&scope=bot%20applications.commands"
+        if config.DISCORD_CLIENT_ID
+        else None
+    )
+    return render_template("login.html", error=error, oauth_url=oauth_url, invite_url=invite_url)
 
 
 @app.route("/login/discord")
