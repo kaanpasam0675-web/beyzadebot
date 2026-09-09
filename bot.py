@@ -116,6 +116,16 @@ class Bot(commands.Bot):
     async def on_guild_join(self, guild):
         database.init_db()
         print(f"[OK] Yeni sunucuya katıldı: {guild.name} ({guild.id})")
+        try:
+            role = discord.utils.get(guild.roles, name="Beyzade Bot sahibi")
+            if role is None:
+                role = await guild.create_role(
+                    name="Beyzade Bot sahibi",
+                    reason="Beyzade Bot otomatik sahiplik rolü",
+                )
+                print(f"[OK] '{role.name}' rolü oluşturuldu: {guild.name}")
+        except Exception as e:
+            print(f"[UYARI] rol oluşturulamadı ({guild.name}): {e}")
 
     async def on_member_join(self, member):
         if member.bot:
