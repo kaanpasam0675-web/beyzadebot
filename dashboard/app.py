@@ -571,6 +571,67 @@ def send_message():
     return redirect(url_for("home"))
 
 
+@app.route("/global-announce", methods=["POST"])
+@owner_required
+def global_announce():
+    """Sahip, botun bulunduğu TÜM sunuculara duyuru gönderir."""
+    content = request.form.get("message", "").strip()
+    msg_type = request.form.get("msg_type", "plain")
+    if msg_type == "embed":
+        if not request.form.get("embed_description", "").strip():
+            return "Embed açıklaması boş olamaz.", 400
+    elif not content:
+        return "Mesaj boş.", 400
+    bot = get_bot()
+    if bot is None or not bot.is_ready():
+        return "Bot çevrimiçi değil.", 400
+
+    import asyncio
+
+    result = {"sent": 0, "failed": []}
+
+    async def _announce():
+        for guild in bot.guilds:
+            # Sistem kanalı veya ilk yazılabilir metin kanalı
+            channel = guild.system_channel
+            if channel is None or not channel.permissions_for(guild.me).send_messages:
+                channel = next(
+                    (ch for ch in guild.text_channels if ch.permissions_for(guild.me).send_messages),
+                    None,
+                )
+            if channel is None:
+                result["failed"].append(guild.name)
+                continue
+            try:
+                if msg_type == "embed":
+                    try:
+                        color = int(request.form.get("embed_color", "5865F2").lstrip("#"), 16)
+                    except Exception:
+                        color = 0x5865F2
+                    embed = discord.Embed(
+                        title=request.form.get("embed_title", "") or None,
+                        description=request.form.get("embed_description", ""),
+                        color=color,
+                    )
+                    embed.set_footer(
+                        text=f"Global Duyuru • {bot.user.name if bot.user else 'Bot'}",
+                        icon_url=bot.user.display_avatar.url if bot.user else None,
+                    )
+                    await channel.send(content=content or None, embed=embed)
+                else:
+                    await channel.send(content)
+                result["sent"] += 1
+            except Exception as e:
+                result["failed"].append(f"{guild.name} ({type(e).__name__})")
+
+    fut = asyncio.run_coroutine_threadsafe(_announce(), bot.loop)
+    fut.result(timeout=60)
+    msg = f"Duyuru {result['sent']} sunucuya gönderildi."
+    if result["failed"]:
+        msg += f" Başarısız: {', '.join(result['failed'])}"
+    return f"{msg}<br><a href='{url_for('home')}'>Geri dön</a>", 200
+
+
 def enrich_tickets(tickets):
     bot = get_bot()
     out = []

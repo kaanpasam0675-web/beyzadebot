@@ -411,6 +411,35 @@
               </form>
             </div>
           </div>
+
+          <div class="card">
+            <h2>📢 Global Duyuru</h2>
+            <p class="muted small">Botun bulunduğu <strong>TÜM sunuculara</strong> tek seferde duyuru mesajı gönderir. Her sunucunun sistem kanalına (yoksa ilk uygun kanala) gönderilir.</p>
+            <div class="mini-tabs" role="tablist">
+              <button type="button" class="mini-tab-btn active" data-minitab="gplain">Normal Mesaj</button>
+              <button type="button" class="mini-tab-btn" data-minitab="gembed">Embed Mesaj</button>
+            </div>
+            <div id="mini-gplain" class="mini-panel active">
+              <form method="post" action="{{ url_for('global_announce') }}" class="stack" onsubmit="return confirm('Duyuru TÜM sunuculara gönderilsin mi?')">
+                <input type="hidden" name="msg_type" value="plain">
+                <label>Duyuru Metni</label>
+                <textarea name="message" rows="3" placeholder="Tüm sunuculara gönderilecek duyuru..." required></textarea>
+                <button class="btn primary" type="submit">Tüm Sunuculara Gönder</button>
+              </form>
+            </div>
+            <div id="mini-gembed" class="mini-panel">
+              <form method="post" action="{{ url_for('global_announce') }}" class="stack" onsubmit="return confirm('Duyuru TÜM sunuculara gönderilsin mi?')">
+                <input type="hidden" name="msg_type" value="embed">
+                <label>Başlık</label>
+                <input type="text" name="embed_title" placeholder="Embed başlığı (opsiyonel)">
+                <label>Açıklama</label>
+                <textarea name="embed_description" rows="4" placeholder="Embed açıklaması..." required></textarea>
+                <label>Renk</label>
+                <input type="color" name="embed_color" value="#5865F2">
+                <button class="btn primary" type="submit">Tüm Sunuculara Gönder</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
       {% endif %}
@@ -480,10 +509,11 @@
 
     document.querySelectorAll('.mini-tab-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        document.querySelectorAll('.mini-tab-btn').forEach(function (b) { b.classList.remove('active'); });
-        document.querySelectorAll('.mini-panel').forEach(function (p) { p.classList.remove('active'); });
+        var group = btn.closest('.card');
+        group.querySelectorAll('.mini-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        group.querySelectorAll('.mini-panel').forEach(function (p) { p.classList.remove('active'); });
         btn.classList.add('active');
-        document.getElementById('mini-' + btn.dataset.minitab).classList.add('active');
+        group.querySelector('#mini-' + btn.dataset.minitab).classList.add('active');
       });
     });
 
