@@ -648,5 +648,7 @@ if __name__ == "__main__":
         print("[OK] Discord botu arka planda başlatıldı.")
     else:
         print("[UYARI] DISCORD_TOKEN boş. Lütfen .env dosyasını doldurun.")
-    print(f"[OK] Dashboard: http://127.0.0.1:{config.DASHBOARD_PORT}")
-    app.run(host="127.0.0.1", port=config.DASHBOARD_PORT, debug=False)
+    port = int(os.getenv("PORT", config.DASHBOARD_PORT))
+    host = "0.0.0.0" if os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_SERVICE_ID") else "127.0.0.1"
+    print(f"[OK] Dashboard: http://{host}:{port}")
+    app.run(host=host, port=port, debug=False)
