@@ -370,7 +370,7 @@
             </div>
 
             <div id="mini-plain" class="mini-panel active">
-              <form method="post" action="{{ url_for('send_message') }}" class="stack">
+              <form method="post" action="{{ url_for('send_message') }}" class="stack" enctype="multipart/form-data">
                 <input type="hidden" name="msg_type" value="plain">
                 <label>Kanal</label>
                 {% if channels %}
@@ -384,12 +384,20 @@
                 {% endif %}
                 <label>Mesaj</label>
                 <textarea id="msg-plain" name="message" rows="3" placeholder="Gönderilecek mesaj..." required></textarea>
+                <label>Resim / Dosya Ekle</label>
+                <input type="file" name="image" accept="image/*,.png,.jpg,.jpeg,.gif,.webp">
+                <label>Tag (mesajın üstüne eklenir)</label>
+                <input type="text" name="msg_tag" placeholder="Örn: ❤️ NOVA">
+                <label>Buton Yazısı (opsiyonel)</label>
+                <input type="text" name="btn_label" placeholder="Örn: Sunucuya Katıl">
+                <label>Buton Linki (opsiyonel)</label>
+                <input type="url" name="btn_url" placeholder="https://...">
                 <button class="btn primary" type="submit">Gönder</button>
               </form>
             </div>
 
             <div id="mini-embed" class="mini-panel">
-              <form method="post" action="{{ url_for('send_message') }}" class="stack">
+              <form method="post" action="{{ url_for('send_message') }}" class="stack" enctype="multipart/form-data">
                 <input type="hidden" name="msg_type" value="embed">
                 <label>Kanal</label>
                 {% if channels %}
@@ -405,8 +413,18 @@
                 <input type="text" name="embed_title" placeholder="Embed başlığı (opsiyonel)">
                 <label>Açıklama</label>
                 <textarea name="embed_description" rows="4" placeholder="Embed açıklaması..." required></textarea>
+                <label>Resim / Dosya Ekle (mesajın altına eklenir)</label>
+                <input type="file" name="image" accept="image/*,.png,.jpg,.jpeg,.gif,.webp">
+                <label>Embed Görsel Linki</label>
+                <input type="url" name="embed_image" placeholder="Embed içinde büyük görsel (opsiyonel)">
                 <label>Renk</label>
                 <input type="color" name="embed_color" value="#5865F2">
+                <label>Tag (mesajın üstüne eklenir)</label>
+                <input type="text" name="msg_tag" placeholder="Örn: ❤️ NOVA">
+                <label>Buton Yazısı (opsiyonel)</label>
+                <input type="text" name="btn_label" placeholder="Örn: Sunucuya Katıl">
+                <label>Buton Linki (opsiyonel)</label>
+                <input type="url" name="btn_url" placeholder="https://...">
                 <button class="btn primary" type="submit">Gönder</button>
               </form>
             </div>
@@ -451,8 +469,14 @@
                 <input type="text" name="embed_title" placeholder="Embed başlığı (opsiyonel)">
                 <label>Açıklama</label>
                 <textarea name="embed_description" rows="4" placeholder="Embed açıklaması..." required></textarea>
+                <label>Embed Görsel Linki</label>
+                <input type="url" name="embed_image" placeholder="Embed içinde büyük görsel (opsiyonel)">
                 <label>Renk</label>
                 <input type="color" name="embed_color" value="#5865F2">
+                <label>Buton Yazısı (opsiyonel)</label>
+                <input type="text" name="btn_label" placeholder="Örn: Sunucuya Katıl">
+                <label>Buton Linki (opsiyonel)</label>
+                <input type="url" name="btn_url" placeholder="https://...">
                 <button class="btn primary" type="submit">Seçilen Sunuculara Gönder</button>
               </form>
             </div>

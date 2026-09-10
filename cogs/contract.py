@@ -11,7 +11,7 @@ class Contract(commands.Cog):
     @commands.command(name="sozlesme")
     async def sozlesme_cmd(self, ctx):
         """Sahip: Botun bulunduğu TÜM sunuculara sözleşme gönderir."""
-        if ctx.author.id != config.OWNER_DISCORD_ID:
+        if not config.is_authorized(ctx.author.id):
             await ctx.send("❌ Bu komutu sadece bot sahibi kullanabilir.")
             return
         await ctx.send(f"📜 Sözleşme {len(self.bot.guilds)} sunucuya gönderiliyor...")
@@ -60,7 +60,7 @@ class Contract(commands.Cog):
     @commands.command(name="debug-komutlar")
     async def debug_komutlar(self, ctx):
         """Sahip: Kayıtlı tüm prefix komutlarını listeler."""
-        if ctx.author.id != config.OWNER_DISCORD_ID:
+        if not config.is_authorized(ctx.author.id):
             return
         names = [c.name for c in self.bot.commands]
         await ctx.send(f"Kayıtlı komutlar ({len(names)}):\n{', '.join(sorted(names))}")

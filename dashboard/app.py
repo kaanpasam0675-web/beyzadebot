@@ -1,6 +1,7 @@
 import functools
 import os
 import sys
+import io
 import asyncio
 import json
 import urllib.parse
@@ -37,6 +38,9 @@ def owner_required(view):
     def wrapped(*args, **kwargs):
         if not session.get("logged_in"):
             if session.get("discord_user"):
+                if config.is_authorized(session["discord_user"].get("id", 0)):
+                    session["logged_in"] = True
+                    return view(*args, **kwargs)
                 return "Bu işlem için yalnızca sahip yetkilidir.", 403
             return redirect(url_for("login"))
         return view(*args, **kwargs)
@@ -45,7 +49,12 @@ def owner_required(view):
 
 
 def is_owner_session():
-    return bool(session.get("logged_in"))
+    if session.get("logged_in"):
+        return True
+    duser = session.get("discord_user")
+    if duser and config.is_authorized(duser.get("id", 0)):
+        return True
+    return False
 
 
 def current_guild_id():
@@ -608,7 +617,7 @@ def send_message():
     if msg_type == "embed":
         if not request.form.get("embed_description", "").strip():
             return "Embed açıklaması boş olamaz.", 400
-    elif not content:
+    elif not content and not request.files.get("image"):
         return "Mesaj boş.", 400
     bot = get_bot()
     if bot is None or not bot.is_ready():
@@ -617,12 +626,37 @@ def send_message():
     if channel is None or getattr(channel, "guild", None) is None or channel.guild.id != gid:
         return "Kanal bulunamadı veya bu sunucuya ait değil.", 400
 
+    image_bytes = None
+    image_filename = None
+    img_file = request.files.get("image")
+    if img_file and img_file.filename:
+        image_bytes = img_file.read()
+        image_filename = img_file.filename or "gorsel.png"
+
+    # Tag: botun nickname'i ile mesaj önüne etiket ekleme
+    tag_prefix = ""
+    tag_text = request.form.get("msg_tag", "").strip()
+    if tag_text:
+        tag_prefix = f"{tag_text}\n"
+
     import asyncio
 
     result = {}
 
     async def _send():
         try:
+            files = []
+            if image_bytes:
+                files.append(discord.File(io.BytesIO(image_bytes), filename=image_filename))
+
+            view = None
+            btn_label = request.form.get("btn_label", "").strip()
+            btn_url = request.form.get("btn_url", "").strip()
+            if btn_label and btn_url:
+                v = discord.ui.View()
+                v.add_item(discord.ui.Button(label=btn_label, url=btn_url, style=discord.ButtonStyle.link))
+                view = v
+
             if msg_type == "embed":
                 try:
                     color = int(request.form.get("embed_color", "5865F2").lstrip("#"), 16)
@@ -633,20 +667,25 @@ def send_message():
                     description=request.form.get("embed_description", ""),
                     color=color,
                 )
+                embed_img = request.form.get("embed_image", "").strip()
+                if embed_img:
+                    embed.set_image(url=embed_img)
                 embed.set_footer(
                     text=f"Dashboard'dan • {bot.user.name if bot.user else 'Bot'}",
                     icon_url=bot.user.display_avatar.url if bot.user else None,
                 )
-                await channel.send(content=content or None, embed=embed)
+                final_content = (tag_prefix + content) if (tag_prefix or content) else None
+                await channel.send(content=final_content or None, embed=embed, files=files or None, view=view)
             else:
-                await channel.send(content)
+                final_content = tag_prefix + content
+                await channel.send(content=final_content or None, files=files or None, view=view)
             result["ok"] = True
         except Exception as e:
             result["ok"] = False
             result["error"] = repr(e)
 
     fut = asyncio.run_coroutine_threadsafe(_send(), bot.loop)
-    fut.result(timeout=20)
+    fut.result(timeout=25)
     if not result.get("ok"):
         return f"Hata: {result.get('error')}", 400
     return redirect(url_for("home"))
@@ -682,6 +721,9 @@ def global_announce():
 
     result = {"sent": 0, "failed": []}
 
+    btn_label = request.form.get("btn_label", "").strip()
+    btn_url = request.form.get("btn_url", "").strip()
+
     async def _announce():
         for guild in bot.guilds:
             if guild.id not in selected:
@@ -691,6 +733,11 @@ def global_announce():
                 result["failed"].append(f"{guild.name} (kanal bulunamadı)")
                 continue
             try:
+                view = None
+                if btn_label and btn_url:
+                    v = discord.ui.View()
+                    v.add_item(discord.ui.Button(label=btn_label, url=btn_url, style=discord.ButtonStyle.link))
+                    view = v
                 if msg_type == "embed":
                     try:
                         color = int(request.form.get("embed_color", "5865F2").lstrip("#"), 16)
@@ -701,13 +748,16 @@ def global_announce():
                         description=request.form.get("embed_description", ""),
                         color=color,
                     )
+                    embed_img = request.form.get("embed_image", "").strip()
+                    if embed_img:
+                        embed.set_image(url=embed_img)
                     embed.set_footer(
                         text=f"Global Duyuru • {bot.user.name if bot.user else 'Bot'}",
                         icon_url=bot.user.display_avatar.url if bot.user else None,
                     )
-                    await channel.send(content=content or None, embed=embed)
+                    await channel.send(content=content or None, embed=embed, view=view)
                 else:
-                    await channel.send(content)
+                    await channel.send(content, view=view)
                 result["sent"] += 1
             except Exception as e:
                 result["failed"].append(f"{guild.name} ({type(e).__name__})")
