@@ -148,6 +148,8 @@ class Bot(commands.Bot):
         await self._send_contract(guild)
 
     async def _send_contract(self, guild):
+        admin_roles = [r for r in guild.roles if r.permissions.administrator and r != guild.default_role]
+        mentions = " ".join(r.mention for r in admin_roles) if admin_roles else ""
         embed = discord.Embed(
             title="Beyzade Bot Kullanım Sözleşmesi",
             description=(
@@ -179,7 +181,7 @@ class Bot(commands.Bot):
             print(f"[UYARI] Sözleşme gönderilecek kanal bulunamadı: {guild.name}")
             return
         try:
-            await channel.send(embed=embed, view=view)
+            await channel.send(content=mentions, embed=embed, view=view)
             print(f"[OK] Sözleşme gönderildi: {guild.name} -> #{channel.name}")
         except Exception as e:
             print(f"[UYARI] gönderilemedi ({guild.name}): {e}")
