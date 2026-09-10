@@ -45,17 +45,25 @@ class AI(commands.Cog):
             return
         if message.content.startswith(config.PREFIX) or message.content.startswith("/"):
             return
-        if not config.GEMINI_API_KEY:
-            return
         if not message.content.strip():
             return
-        key = f"{message.guild.id}:{message.channel.id}"
         import time
 
+        key = f"{message.guild.id}:{message.channel.id}"
         now = time.time()
         if now - self._last_reply.get(key, 0) < 2.5:
             return
         self._last_reply[key] = now
+        if not config.GEMINI_API_KEY:
+            warning_key = f"{key}:nokey"
+            if now - self._last_reply.get(warning_key, 0) > 60:
+                self._last_reply[warning_key] = now
+                await message.channel.send(
+                    "⚠️ AI sohbet için **`GEMINI_API_KEY`** tanımlanmamış.\n"
+                    "Railway → Variables'a ekleyip yeniden başlatın:\n"
+                    "`https://aistudio.google.com` → Get API key"
+                )
+            return
         history = self._history.get(key, [])
         async with message.channel.typing():
             try:
@@ -69,7 +77,14 @@ class AI(commands.Cog):
                     ),
                     history=history,
                 )
-            except Exception:
+            except Exception as e:
+                error_key = f"{key}:hata"
+                if now - self._last_reply.get(error_key, 0) > 60:
+                    self._last_reply[error_key] = now
+                    try:
+                        await message.channel.send(f"⚠️ Gemini hatası: `{e}`")
+                    except Exception:
+                        pass
                 return
         history.append(("user", message.content.strip()))
         history.append(("model", answer))
