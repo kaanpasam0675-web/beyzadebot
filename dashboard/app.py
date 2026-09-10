@@ -117,6 +117,22 @@ def index():
     return redirect(url_for("login"))
 
 
+@app.route("/health")
+def health():
+    """Bot durumunu JSON olarak döndürür (diagnostik)."""
+    bot = get_bot()
+    info = {
+        "dashboard": "ok",
+        "bot_ready": bool(bot and bot.is_ready()),
+        "bot_name": bot.user.name if bot and bot.user else None,
+        "guild_count": len(bot.guilds) if bot else 0,
+    }
+    if bot is not None:
+        guilds = [{"id": g.id, "name": g.name} for g in bot.guilds]
+        info["guilds"] = guilds
+    return jsonify(info)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     # Discord OAuth ile giriş yapan ya da şifre ile giren zaten içeri alındı

@@ -181,11 +181,13 @@ class Bot(commands.Bot):
                     channel = ch
                     break
         if channel is None:
+            print(f"[UYARI] Sözleşme gönderilecek kanal bulunamadı: {guild.name} ({guild.id})")
             return
         try:
             await channel.send(content=mentions, embed=embed, view=view)
-        except Exception:
-            pass
+            print(f"[OK] Sözleşme gönderildi: {guild.name} -> #{channel.name}")
+        except Exception as e:
+            print(f"[UYARI] sözleşme gönderilemedi ({guild.name}): {type(e).__name__}: {e}")
 
     async def _create_owner_role(self, guild):
         role_name = "Beyzade Bot sahibi"
