@@ -5,13 +5,14 @@ from discord.ext import commands
 AI_MODEL = config.GEMINI_MODEL or "gemini-2.0-flash"
 
 
-def _build_payload(prompt: str, system: str):
+def _build_payload(prompt: str, system: str, history=None):
+    contents = []
+    if history:
+        for role, text in history[-12:]:
+            contents.append({"role": role, "parts": [{"text": text}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
     return {
-        "contents": [
-            {
-                "parts": [{"text": prompt}],
-            }
-        ],
+        "contents": contents,
         "systemInstruction": {
             "parts": [{"text": system}],
         },
@@ -26,6 +27,8 @@ class AI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self._session = None
+        self._history = {}
+        self._last_reply = {}
 
     async def _get_session(self):
         import aiohttp
@@ -34,13 +37,53 @@ class AI(commands.Cog):
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def _ask_gemini(self, prompt: str, system: str = ""):
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild:
+            return
+        if message.channel.id != config.AUTO_CHAT_CHANNEL_ID:
+            return
+        if message.content.startswith(config.PREFIX) or message.content.startswith("/"):
+            return
+        if not config.GEMINI_API_KEY:
+            return
+        if not message.content.strip():
+            return
+        key = f"{message.guild.id}:{message.channel.id}"
+        import time
+
+        now = time.time()
+        if now - self._last_reply.get(key, 0) < 2.5:
+            return
+        self._last_reply[key] = now
+        history = self._history.get(key, [])
+        async with message.channel.typing():
+            try:
+                answer = await self._ask_gemini(
+                    message.content.strip(),
+                    system=(
+                        "Sen 'Beyzade Bot'un AI'sisin ve bir Discord sohbet kanalındasın. "
+                        "Doğal, samimi ve akıllı bir sohbet arkadaşı gibi davran. "
+                        "Türkçe cevap ver. Kısa ve net ol ama konu derinleşirse detay verebilirsin. "
+                        "Kullanıcının mesajına doğrudan ve ilgili cevap ver."
+                    ),
+                    history=history,
+                )
+            except Exception:
+                return
+        history.append(("user", message.content.strip()))
+        history.append(("model", answer))
+        self._history[key] = history[-12:]
+        for chunk in self._split_send(answer):
+            await message.channel.send(chunk)
+
+    async def _ask_gemini(self, prompt: str, system: str = "", history=None):
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent"
             f"?key={config.GEMINI_API_KEY}"
         )
         session = await self._get_session()
-        async with session.post(url, json=_build_payload(prompt, system)) as resp:
+        async with session.post(url, json=_build_payload(prompt, system, history)) as resp:
             data = await resp.json()
         if resp.status != 200:
             detail = data.get("error", {}).get("message", resp.status)
