@@ -253,9 +253,10 @@ class Bot(commands.Bot):
             pass
 
     @commands.command(name="sozlesme")
-    @commands.is_owner()
     async def sozlesme_cmd(self, ctx):
         """Sahip: Botun bulunduğu TÜM sunuculara sözleşme gönderir."""
+        if ctx.author.id != config.OWNER_DISCORD_ID:
+            return
         await ctx.send(f"📜 Sözleşme {len(self.guilds)} sunucuya gönderiliyor...")
         sent = 0
         failed = 0
