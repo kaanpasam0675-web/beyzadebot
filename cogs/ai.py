@@ -4,7 +4,9 @@ from discord.ext import commands
 
 # Ana sağlayıcı: Groq (Türkiye'den ücretsiz kullanılabilir)
 # GEMINI_API_KEY de olursa Gemini yedek olarak kullanılır.
-GROQ_MODEL = config.GROQ_MODEL or "llama-3.3-70b-versatile"
+# Not: Groq'un eski "llama-3.3-70b-versatile" free erişimi kalktı.
+# Ücretsiz katalogda şu an: openai/gpt-oss-20b, openai/gpt-oss-120b, qwen/qwen3.x-xb
+GROQ_MODEL = config.GROQ_MODEL or "openai/gpt-oss-20b"
 
 
 def _build_messages(prompt: str, system: str, history=None):
