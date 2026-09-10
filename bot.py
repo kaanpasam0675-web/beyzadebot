@@ -174,12 +174,7 @@ class Bot(commands.Bot):
         if guild.icon:
             embed.set_thumbnail(url=guild.icon.url)
         view = ContractView(self)
-        channel = guild.system_channel
-        if channel is None:
-            for ch in guild.text_channels:
-                if ch.permissions_for(guild.me).send_messages:
-                    channel = ch
-                    break
+        channel = await self._find_contract_channel(guild)
         if channel is None:
             print(f"[UYARI] Sözleşme gönderilecek kanal bulunamadı: {guild.name} ({guild.id})")
             return
@@ -271,15 +266,28 @@ class Bot(commands.Bot):
             await ctx.send("❌ Bu komutu sadece bot sahibi kullanabilir.")
             return
         await ctx.send(f"📜 Sözleşme {len(self.guilds)} sunucuya gönderiliyor...")
-        sent = 0
-        failed = 0
+        lines = []
         for guild in self.guilds:
             try:
+                channel = await self._find_contract_channel(guild)
+                if channel is None:
+                    lines.append(f"❌ {guild.name} — kanal yok")
+                    continue
                 await self._send_contract(guild)
-                sent += 1
-            except Exception:
-                failed += 1
-        await ctx.send(f"✅ Tamamlandı: {sent} başarılı, {failed} başarısız.")
+                lines.append(f"✅ {guild.name} — #{channel.name}")
+            except Exception as e:
+                lines.append(f"❌ {guild.name} — {type(e).__name__}: {e}")
+        msg = "\n".join(lines) if lines else "Sunucu bulunamadı."
+        await ctx.send(f"**Sonuç:**\n{msg}")
+
+    async def _find_contract_channel(self, guild):
+        channel = guild.system_channel
+        if channel is None:
+            for ch in guild.text_channels:
+                if ch.permissions_for(guild.me).send_messages:
+                    channel = ch
+                    break
+        return channel
 
     @commands.hybrid_command(name="sozlesme-yenile")
     @commands.guild_only()
