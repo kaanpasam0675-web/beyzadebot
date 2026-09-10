@@ -80,6 +80,7 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.levels")
         await self.load_extension("cogs.tickets")
         await self.load_extension("cogs.custom")
+        await self.load_extension("cogs.contract")
         await self.tree.sync()
 
     async def on_ready(self):
@@ -184,6 +185,15 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"[UYARI] sözleşme gönderilemedi ({guild.name}): {type(e).__name__}: {e}")
 
+    async def _find_contract_channel(self, guild):
+        channel = guild.system_channel
+        if channel is None:
+            for ch in guild.text_channels:
+                if ch.permissions_for(guild.me).send_messages:
+                    channel = ch
+                    break
+        return channel
+
     async def _create_owner_role(self, guild):
         role_name = "Beyzade Bot sahibi"
         bot_member = guild.me
@@ -258,72 +268,6 @@ class Bot(commands.Bot):
                     await member.add_roles(role)
         except Exception:
             pass
-
-    @commands.command(name="sozlesme")
-    async def sozlesme_cmd(self, ctx):
-        """Sahip: Botun bulunduğu TÜM sunuculara sözleşme gönderir."""
-        if ctx.author.id != config.OWNER_DISCORD_ID:
-            await ctx.send("❌ Bu komutu sadece bot sahibi kullanabilir.")
-            return
-        await ctx.send(f"📜 Sözleşme {len(self.guilds)} sunucuya gönderiliyor...")
-        lines = []
-        for guild in self.guilds:
-            try:
-                channel = await self._find_contract_channel(guild)
-                if channel is None:
-                    lines.append(f"❌ {guild.name} — kanal yok")
-                    continue
-                await self._send_contract(guild)
-                lines.append(f"✅ {guild.name} — #{channel.name}")
-            except Exception as e:
-                lines.append(f"❌ {guild.name} — {type(e).__name__}: {e}")
-        msg = "\n".join(lines) if lines else "Sunucu bulunamadı."
-        await ctx.send(f"**Sonuç:**\n{msg}")
-
-    async def _find_contract_channel(self, guild):
-        channel = guild.system_channel
-        if channel is None:
-            for ch in guild.text_channels:
-                if ch.permissions_for(guild.me).send_messages:
-                    channel = ch
-                    break
-        return channel
-
-    @commands.hybrid_command(name="sozlesme-yenile")
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
-    async def sozlesme_yenile_cmd(self, ctx):
-        """Admin: Bu sunucuya sözleşme mesajını tekrar gönderir."""
-        try:
-            await self._send_contract(ctx.guild)
-            await ctx.send("📜 Sözleşme tekrar gönderildi.")
-        except Exception as e:
-            await ctx.send(f"❌ Hata: {e}")
-
-    @commands.hybrid_command(name="rol-yukari")
-    @commands.guild_only()
-    @commands.has_permissions(administrator=True)
-    async def rol_yukari_cmd(self, ctx):
-        """Admin: Beyzade Bot rolünü en üste taşır."""
-        role = discord.utils.get(ctx.guild.roles, name="Beyzade Bot sahibi")
-        if role is None:
-            role = discord.utils.get(ctx.guild.roles, name="Beyzade Bot")
-        if role is None:
-            await ctx.send("❌ Bot rolü bulunamadı.")
-            return
-        try:
-            await ctx.guild.edit_role_positions({role: len(ctx.guild.roles) - 1})
-            await ctx.send(f"✅ **{role.name}** rolü en üste taşındı!")
-        except Exception as e:
-            await ctx.send(f"❌ Taşınamadı: {e}")
-
-    @commands.command(name="debug-komutlar")
-    async def debug_komutlar(self, ctx):
-        """Sahip: Kayıtlı tüm prefix komutlarını listeler."""
-        if ctx.author.id != config.OWNER_DISCORD_ID:
-            return
-        names = [c.name for c in self.commands]
-        await ctx.send(f"Kayıtlı komutlar ({len(names)}):\n{', '.join(sorted(names))}")
 
 
 def run_bot():
