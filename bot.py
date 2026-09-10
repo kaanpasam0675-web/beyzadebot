@@ -317,6 +317,14 @@ class Bot(commands.Bot):
         except Exception as e:
             await ctx.send(f"❌ Taşınamadı: {e}")
 
+    @commands.command(name="debug-komutlar")
+    async def debug_komutlar(self, ctx):
+        """Sahip: Kayıtlı tüm prefix komutlarını listeler."""
+        if ctx.author.id != config.OWNER_DISCORD_ID:
+            return
+        names = [c.name for c in self.commands]
+        await ctx.send(f"Kayıtlı komutlar ({len(names)}):\n{', '.join(sorted(names))}")
+
 
 def run_bot():
     global BOT
