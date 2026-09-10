@@ -9,7 +9,7 @@ DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
 AUTO_ROLE = os.getenv("AUTO_ROLE", "")
 MOD_LOG_CHANNEL_ID = 1546444871856955392
-AUTO_CHAT_CHANNEL_ID = 1546461055222292530
+AUTO_CHAT_CHANNEL_ID = 1547601582160617523
 
 # Discord OAuth2 (Birden fazla sunucu admininin dashboard kullanımı için)
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
@@ -36,3 +36,7 @@ INVITE_URL = (
 
 PREFIX = "!"
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.db")
+
+# Google Gemini AI sohbet (https://aistudio.google.com -> Get API key)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")

@@ -24,8 +24,6 @@ intents.members = True
 
 
 VOICE_CHANNEL_ID = 1537215483168956498
-LEVEL_UP_CHANNEL_ID = 1546441566397141074
-
 
 class ContractView(discord.ui.View):
     def __init__(self, bot_instance):
@@ -81,6 +79,7 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.tickets")
         await self.load_extension("cogs.custom")
         await self.load_extension("cogs.contract")
+        await self.load_extension("cogs.ai")
         await self.tree.sync()
 
     async def on_ready(self):
