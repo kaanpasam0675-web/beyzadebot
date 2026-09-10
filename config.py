@@ -40,3 +40,8 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.db")
 # Google Gemini AI sohbet (https://aistudio.google.com -> Get API key)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+# Groq AI (Türkiye dahil çoğu ülkede ücretsiz: https://console.groq.com -> API Keys)
+# Ana sağlayıcı Groq'tur; yoksa Gemini kullanılır.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
