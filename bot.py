@@ -27,6 +27,35 @@ VOICE_CHANNEL_ID = 1537215483168956498
 LEVEL_UP_CHANNEL_ID = 1546441566397141074
 
 
+class ContractView(discord.ui.View):
+    def __init__(self, bot_instance):
+        super().__init__(timeout=None)
+        self.bot = bot_instance
+
+    @discord.ui.button(label="Kabul Et", style=discord.ButtonStyle.success, custom_id="contract_accept")
+    async def accept_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("Bu komut sadece sunucularda kullanılabilir.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        role = await self.bot._create_owner_role(guild)
+        await self.bot._apply_tag(guild)
+        if role:
+            await interaction.followup.send(
+                "Sözleşme kabul edildi! ✅\n"
+                f"**{role.name}** rolü oluşturuldu ve rol sırasının en üstüne taşındı.\n"
+                "Rolü sunucu sahibine vererek yönetimi başlatabilirsiniz.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                "Sözleşme kabul edildi ancak rol oluşturulurken hata oluştu. "
+                "Lütfen botun yetkilerini kontrol edin.",
+                ephemeral=True,
+            )
+
+
 class Bot(commands.Bot):
     def __init__(self):
         super().__init__(
@@ -53,6 +82,7 @@ class Bot(commands.Bot):
 
     async def on_ready(self):
         database.init_db()
+        self.add_view(ContractView(self))
         print(f"[OK] Bot giriş yaptı: {self.user} ({self.user.id})")
         print(f"[OK] Sunucu sayısı: {len(self.guilds)}")
         try:
@@ -86,7 +116,6 @@ class Bot(commands.Bot):
         if message.author.bot or not message.guild:
             return
         prefix = database.get_prefix(message.guild.id)
-        # XP kazanımı (seviye modülü tarafından değil, mesaj hook'u)
         try:
             level, leveled = database.add_xp(message.guild.id, message.author.id, 10)
             if leveled:
@@ -116,17 +145,71 @@ class Bot(commands.Bot):
     async def on_guild_join(self, guild):
         database.init_db()
         print(f"[OK] Yeni sunucuya katıldı: {guild.name} ({guild.id})")
+        await self._send_contract(guild)
+
+    async def _send_contract(self, guild):
+        embed = discord.Embed(
+            title="Beyzade Bot Kullanım Sözleşmesi",
+            description=(
+                "Botu sunucunuza ekleyerek aşağıdaki şartları kabul etmiş sayılırsınız:\n\n"
+                "1️⃣ Bot yalnızca sunucu yönetim amaçlı kullanılır.\n"
+                "2️⃣ Bot verileri (komut, ayar, ticket vb.) sunucu sahibi tarafından yönetilir.\n"
+                "3️⃣ Botun amacı dışı kullanımı yasaktır.\n"
+                "4️⃣ Verileriniz (sunucu ID, komut kayıtları) bot yönetim amaçlı saklanır.\n"
+                "5️⃣ Dashboard erişimi yalnızca sunucu adminlerine açıktır.\n"
+                "6️⃣ Bot sahibi, kötüye kullanım tespitinde botu sunucudan çıkarma hakkına sahiptir.\n\n"
+                "Aşağıdaki butona tıklayarak sözleşmeyi kabul edin.\n"
+                "Kabul edildiğinde **yönetici yetkilerine sahip rol** oluşturulacak ve "
+                "sunucu rol sırasının en üstüne taşınacaktır."
+            ),
+            color=0x5865F2,
+            timestamp=datetime.utcnow(),
+        )
+        embed.set_footer(text="Beyzade Bot • Sözleşme")
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        view = ContractView(self)
+        channel = guild.system_channel
+        if channel is None:
+            for ch in guild.text_channels:
+                if ch.permissions_for(guild.me).send_messages:
+                    channel = ch
+                    break
+        if channel is None:
+            print(f"[UYARI] Sözleşme gönderilecek kanal bulunamadı: {guild.name}")
+            return
         try:
-            role = discord.utils.get(guild.roles, name="Beyzade Bot sahibi")
-            if role is None:
-                role = await guild.create_role(
-                    name="Beyzade Bot sahibi",
-                    reason="Beyzade Bot otomatik sahiplik rolü",
-                )
-                print(f"[OK] '{role.name}' rolü oluşturuldu: {guild.name}")
+            await channel.send(embed=embed, view=view)
+            print(f"[OK] Sözleşme gönderildi: {guild.name} -> #{channel.name}")
+        except Exception as e:
+            print(f"[UYARI] gönderilemedi ({guild.name}): {e}")
+
+    async def _create_owner_role(self, guild):
+        role_name = "Beyzade Bot sahibi"
+        existing = discord.utils.get(guild.roles, name=role_name)
+        if existing:
+            try:
+                await guild.edit_role_positions({existing: len(guild.roles) - 1})
+                print(f"[OK] Rol zaten var, en üste taşındı: {guild.name}")
+            except Exception as e:
+                print(f"[UYARI] rol taşınamadı ({guild.name}): {e}")
+            return existing
+        try:
+            role = await guild.create_role(
+                name=role_name,
+                permissions=discord.Permissions(administrator=True),
+                reason="Beyzade Bot sözleşme kabulü",
+                hoist=True,
+                mentionable=True,
+            )
+            await guild.edit_role_positions({role: len(guild.roles) - 1})
+            print(f"[OK] '{role.name}' rolü oluşturuldu + en üste taşındı: {guild.name}")
+            return role
         except Exception as e:
             print(f"[UYARI] rol oluşturulamadı ({guild.name}): {e}")
-        # Sunucu için tanımlı tag varsa botun o sunucudaki adını ayarla
+            return None
+
+    async def _apply_tag(self, guild):
         try:
             settings = database.get_guild_settings(guild.id)
             tag = (settings.get("bot_tag") or "").strip()
@@ -134,9 +217,8 @@ class Bot(commands.Bot):
                 new_nick = f"{tag} {self.user.name}"
                 if guild.me.nick != new_nick:
                     await guild.me.edit(nick=new_nick)
-                    print(f"[OK] Nickname '{new_nick}' olarak ayarlandı ({guild.name})")
-        except Exception as e:
-            print(f"[UYARI] nickname ayarlanamadı ({guild.name}): {e}")
+        except Exception:
+            pass
 
     async def on_member_join(self, member):
         if member.bot:
@@ -168,6 +250,35 @@ class Bot(commands.Bot):
         except Exception:
             pass
 
+    @commands.command(name="sozlesme")
+    @commands.is_owner()
+    async def sozlesme_cmd(self, ctx):
+        """Sahip: Botun bulunduğu TÜM sunuculara sözleşme gönderir."""
+        await ctx.send(f"📜 Sözleşme {len(self.guilds)} sunucuya gönderiliyor...")
+        sent = 0
+        failed = 0
+        for guild in self.guilds:
+            try:
+                await self._send_contract(guild)
+                sent += 1
+            except Exception:
+                failed += 1
+        await ctx.send(f"✅ Tamamlandı: {sent} başarılı, {failed} başarısız.")
+
+    @commands.command(name="sozlesme-kabul")
+    @commands.guild_only()
+    @commands.has_permissions(administrator=True)
+    async def sozlesme_kabul_cmd(self, ctx):
+        """Admin: Sözleşmeyi kabul edip yönetici rolünü oluşturur."""
+        role = await self._create_owner_role(ctx.guild)
+        await self._apply_tag(ctx.guild)
+        if role:
+            await ctx.send(
+                f"✅ Sözleşme kabul edildi! **{role.name}** rolü oluşturuldu ve en üste taşındı."
+            )
+        else:
+            await ctx.send("❌ Rol oluşturulurken hata oluştu. Bot yetkilerini kontrol edin.")
+
 
 def run_bot():
     global BOT
@@ -184,7 +295,6 @@ def run_bot():
 
 
 def start_bot_thread():
-    """Dashboard çalışırken botu ayrı thread'de başlatır."""
     t = threading.Thread(target=run_bot, daemon=True)
     t.start()
     return t

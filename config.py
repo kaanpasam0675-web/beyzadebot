@@ -17,6 +17,9 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 # OAuth dönüş adresi — Discord Developer Portal'da kayıtlı olanla aynı olmalı
 OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI", "http://127.0.0.1:5000/login/discord/callback")
 
+# Bot sahibinin Discord kullanıcı ID'si (sadece bu kişi tam erişime sahip olur)
+OWNER_DISCORD_ID = int(os.getenv("OWNER_DISCORD_ID", "1486064551869943828"))
+
 # Bot davet izinleri — Discord otorizasyon ekranında listelenir (moderasyon + ses + kanal/rol yönetimi)
 INVITE_URL = (
     f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}"

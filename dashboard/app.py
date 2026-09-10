@@ -119,14 +119,12 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    # Şifre belirlenmediyse doğrudan içeri al
-    if not config.DASHBOARD_PASSWORD:
-        session["logged_in"] = True
-        return redirect(url_for("home"))
+    # Discord OAuth ile giriş yapan ya da şifre ile giren zaten içeri alındı
     if session.get("logged_in") or session.get("discord_user"):
         return redirect(url_for("home"))
     error = None
-    if request.method == "POST":
+    # Şifre alanı: sadece DASHBOARD_PASSWORD tanımlıysa aktif
+    if request.method == "POST" and config.DASHBOARD_PASSWORD:
         password = request.form.get("password", "")
         if password == config.DASHBOARD_PASSWORD:
             session["logged_in"] = True
