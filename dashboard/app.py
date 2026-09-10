@@ -614,10 +614,11 @@ def send_message():
     channel_id = int(request.form.get("channel_id", 0))
     content = request.form.get("message", "").strip()
     msg_type = request.form.get("msg_type", "plain")
+    tag_text = request.form.get("msg_tag", "").strip()
     if msg_type == "embed":
         if not request.form.get("embed_description", "").strip():
             return "Embed açıklaması boş olamaz.", 400
-    elif not content and not request.files.get("image"):
+    elif not content and not request.files.get("image") and not tag_text:
         return "Mesaj boş.", 400
     bot = get_bot()
     if bot is None or not bot.is_ready():
@@ -635,7 +636,6 @@ def send_message():
 
     # Tag: botun nickname'i ile mesaj önüne etiket ekleme
     tag_prefix = ""
-    tag_text = request.form.get("msg_tag", "").strip()
     if tag_text:
         tag_prefix = f"{tag_text}\n"
 
