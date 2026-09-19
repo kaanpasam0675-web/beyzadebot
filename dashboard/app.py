@@ -348,18 +348,57 @@ def set_bot_tag_route():
     gid = int(request.form.get("guild_id", 0) or current_guild_id())
     tag = request.form.get("bot_tag", "").strip()
     database.set_bot_tag(gid, tag)
+    database.set_bot_nick(gid, "")  # tag ile özel isim çakışmasın
     bot = get_bot()
     if bot is not None and bot.is_ready():
         guild = bot.get_guild(gid)
-        if guild is not None and tag:
+        if guild is not None:
             import asyncio
 
             async def _nick():
-                new_nick = f"{tag} {bot.user.name}"
+                new_nick = f"{tag} {bot.user.name}" if tag else None
                 if guild.me.nick != new_nick:
                     await guild.me.edit(nick=new_nick)
 
             asyncio.run_coroutine_threadsafe(_nick(), bot.loop).result(timeout=20)
+    return redirect(url_for("home"))
+
+
+@app.route("/set-nickname", methods=["POST"])
+@owner_required
+def set_bot_nick_route():
+    """Sahip, seçili sunucuda botun takma adını (isim) değiştirir."""
+    gid = int(request.form.get("guild_id", 0) or current_guild_id())
+    nick = request.form.get("bot_nick", "").strip()
+    if len(nick) > 32:
+        return "İsim en fazla 32 karakter olabilir.", 400
+    database.set_bot_nick(gid, nick)
+    database.set_bot_tag(gid, "")  # isim ile tag çakışmasın
+    bot = get_bot()
+    if bot is None or not bot.is_ready():
+        return "Bot çevrimiçi değil.", 400
+    guild = bot.get_guild(gid)
+    if guild is None:
+        return "Sunucu bulunamadı.", 400
+
+    import asyncio
+
+    result = {}
+
+    async def _nick():
+        try:
+            new_nick = nick or None
+            if guild.me.nick != new_nick:
+                await guild.me.edit(nick=new_nick)
+            result["ok"] = True
+        except Exception as e:
+            result["ok"] = False
+            result["error"] = repr(e)
+
+    fut = asyncio.run_coroutine_threadsafe(_nick(), bot.loop)
+    fut.result(timeout=20)
+    if not result.get("ok"):
+        return f"Hata: {result.get('error')}", 400
     return redirect(url_for("home"))
 
 
@@ -966,12 +1005,14 @@ def available_guilds():
     guilds = []
     if bot is not None:
         for g in bot.guilds:
+            settings = database.get_guild_settings(g.id)
             guilds.append(
                 {
                     "id": g.id,
                     "name": g.name,
                     "icon": g.icon.url if g.icon else None,
                     "member_count": g.member_count,
+                    "bot_nick": settings.get("bot_nick") or (g.me.nick if g.me else None) or "",
                 }
             )
     # Discord OAuth kullanıcısı: yalnızca admin olduğu ve botun da olduğu sunucular

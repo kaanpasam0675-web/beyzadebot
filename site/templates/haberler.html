@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Tüm Haberler — Süleymaniye Okulu{% endblock %}
+
+{% block content %}
+<div class="section-head page-head">
+  <h2 class="section-title">Tüm Haberler</h2>
+  <form action="{{ url_for('all_articles') }}" method="get" class="search">
+    <input type="text" name="q" value="{{ q }}" placeholder="Haber ara...">
+    <button type="submit" class="btn">Ara</button>
+  </form>
+</div>
+
+{% if cat %}
+  <p class="filter-info">Kategori: <strong>{{ cat | catname }}</strong></p>
+{% elif q %}
+  <p class="filter-info">"<strong>{{ q }}</strong>" için {{ total }} sonuç bulundu.</p>
+{% endif %}
+
+{% if articles %}
+  <div class="article-grid">
+    {% for a in articles %}
+      <a href="{{ url_for('article_detail', article_id=a.id) }}" class="card">
+        {% if a.image %}
+          <div class="card-img" style="background-image:url('{{ url_for('static', filename='uploads/' ~ a.image) }}')"></div>
+        {% else %}
+          <div class="card-img card-img-placeholder"></div>
+        {% endif %}
+        <div class="card-body">
+          <span class="tag">{{ a.category | catname }}</span>
+          <h3>{{ a.title }}</h3>
+          <p>{{ a.summary }}</p>
+          <span class="meta">{{ a.author_name }} • {{ a.created_at | trdate }}</span>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+
+  {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+        <a class="btn btn-outline" href="{{ url_for('all_articles', sayfa=page-1, q=q, kategori=cat) }}">← Önceki</a>
+      {% endif %}
+      <span>Sayfa {{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+        <a class="btn btn-outline" href="{{ url_for('all_articles', sayfa=page+1, q=q, kategori=cat) }}">Sonraki →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+{% else %}
+  <div class="empty-box">
+    <h3>Haber bulunamadı.</h3>
+    <p>Farklı bir arama deneyin veya <a href="{{ url_for('index') }}">ana sayfaya</a> dönün.</p>
+  </div>
+{% endif %}
+{% endblock %}

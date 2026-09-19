@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Yetkili Girişi — Süleymaniye Okulu{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body">
+  <main class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo">S</div>
+      <h1>Süleymaniye Okulu</h1>
+      <p class="auth-sub">Haber sitesi yönetimine giriş</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="flash flash-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="post" class="stack">
+        <label>Kullanıcı Adı
+          <input type="text" name="username" required autofocus>
+        </label>
+        <label>Şifre
+          <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="btn btn-block">Giriş Yap</button>
+      </form>
+      <p class="auth-foot">Yalnızca yetkili öğretmen ve kurucu erişebilir. <a href="{{ url_for('index') }}">← Siteye dön</a></p>
+    </div>
+  </main>
+</body>
+</html>

@@ -230,11 +230,16 @@ class Bot(commands.Bot):
     async def _apply_tag(self, guild):
         try:
             settings = database.get_guild_settings(guild.id)
+            nick = (settings.get("bot_nick") or "").strip()
             tag = (settings.get("bot_tag") or "").strip()
-            if tag:
+            if nick:
+                new_nick = nick
+            elif tag:
                 new_nick = f"{tag} {self.user.name}"
-                if guild.me.nick != new_nick:
-                    await guild.me.edit(nick=new_nick)
+            else:
+                new_nick = ""
+            if guild.me.nick != new_nick:
+                await guild.me.edit(nick=new_nick or None)
         except Exception:
             pass
 

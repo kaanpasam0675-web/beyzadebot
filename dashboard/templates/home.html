@@ -508,7 +508,12 @@
                     <strong>{{ g.name }}</strong>
                     <span class="muted small">({{ g.member_count }} üye)</span>
                   </span>
-                  <span style="display:flex;gap:6px;">
+                  <span style="display:flex;gap:6px;align-items:center;">
+                    <form method="post" action="{{ url_for('set_bot_nick_route') }}" style="display:flex;gap:4px;">
+                      <input type="hidden" name="guild_id" value="{{ g.id }}">
+                      <input type="text" name="bot_nick" value="{{ g.bot_nick or '' }}" placeholder="Bot ismi" maxlength="32" style="max-width:150px;padding:4px 6px;font-size:12px;">
+                      <button class="btn primary small" type="submit" title="Bu sunucuda bot ismini değiştir">📛</button>
+                    </form>
                     <form method="post" action="{{ url_for('join_guild') }}">
                       <input type="hidden" name="guild_id" value="{{ g.id }}">
                       <button class="btn success small" type="submit">🌐 Sunucuya Gir</button>
@@ -531,6 +536,15 @@
               <input type="hidden" name="guild_id" value="{{ selected_guild.id }}">
               <input type="text" name="bot_tag" value="{{ settings.bot_tag or '' }}" placeholder="Örn: ❤️ NOVA" maxlength="30">
               <button class="btn primary" type="submit">Etiketi Uygula</button>
+            </form>
+            <hr>
+
+            <h3>📛 Bot İsmi (Takma Ad)</h3>
+            <p class="muted small">Şu anki sunucuda botun tam takma adı: <strong>{{ settings.bot_nick or '—' }}</strong></p>
+            <form method="post" action="{{ url_for('set_bot_nick_route') }}" class="stack">
+              <input type="hidden" name="guild_id" value="{{ selected_guild.id }}">
+              <input type="text" name="bot_nick" value="{{ settings.bot_nick or '' }}" placeholder="Örn: Beyzz ♥" maxlength="32">
+              <button class="btn primary" type="submit">İsmi Uygula</button>
             </form>
             <hr>
 
