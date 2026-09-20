@@ -1,4 +1,5 @@
 import os
+import asyncio
 import random
 import sys
 import threading
@@ -81,6 +82,65 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.contract")
         await self.load_extension("cogs.ai")
         await self.tree.sync()
+        self._scheduled_task = self.loop.create_task(self._scheduled_loop())
+
+    async def _scheduled_loop(self):
+        """Bekleyen planlı mesajları zamanında gönderen arka plan görevi."""
+        await self.wait_until_ready()
+        while not self.is_closed():
+            try:
+                now = datetime.utcnow().isoformat()
+                due = database.get_due_scheduled_messages(now)
+                for item in due:
+                    await self._dispatch_scheduled(item)
+            except Exception as e:
+                print(f"[UYARI] Zamanlayıcı hatası: {e}")
+            await asyncio.sleep(30)
+
+    async def _dispatch_scheduled(self, item):
+        try:
+            channel = self.get_channel(item["channel_id"])
+            if channel is None or item["guild_id"] != getattr(getattr(channel, "guild", None), "id", None):
+                database.set_scheduled_status(item["id"], "failed")
+                return
+            content = item.get("content") or ""
+            tag = (item.get("msg_tag") or "").strip()
+            mention = int(item.get("mention_user_id") or 0)
+            prefix = ""
+            if tag:
+                prefix += f"{tag}\n"
+            if mention:
+                prefix += f"<@{mention}> "
+
+            view = None
+            btn_label = (item.get("btn_label") or "").strip()
+            btn_url = (item.get("btn_url") or "").strip()
+            if btn_label and btn_url:
+                v = discord.ui.View()
+                v.add_item(discord.ui.Button(label=btn_label, url=btn_url, style=discord.ButtonStyle.link))
+                view = v
+
+            final_content = (prefix + content).strip() or None
+            if item.get("msg_type") == "embed":
+                try:
+                    color = int(str(item.get("embed_color") or "5865F2").lstrip("#"), 16)
+                except Exception:
+                    color = 0x5865F2
+                embed = discord.Embed(
+                    title=item.get("embed_title") or None,
+                    description=item.get("embed_description") or " ",
+                    color=color,
+                )
+                if item.get("embed_image"):
+                    embed.set_image(url=item["embed_image"])
+                embed.set_footer(text="Sonra gönderildi")
+                await channel.send(content=final_content, embed=embed, view=view)
+            else:
+                await channel.send(content=final_content, view=view)
+            database.set_scheduled_status(item["id"], "sent")
+        except Exception as e:
+            print(f"[UYARI] Planlı mesaj gönderilemedi ({item.get('id')}): {e}")
+            database.set_scheduled_status(item["id"], "failed")
 
     async def on_ready(self):
         database.init_db()

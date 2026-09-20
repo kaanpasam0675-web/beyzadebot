@@ -488,6 +488,55 @@
               </form>
             </div>
           </div>
+
+          <div class="card">
+            <h2>⏰ Planlanmış Mesaj</h2>
+            <p class="muted small">Mesajı seçtiğin zaman tek kanala gönderilir (kişi de pinglenebilir).</p>
+            <form method="post" action="{{ url_for('schedule_message') }}" class="stack">
+              <input type="hidden" name="guild_id" value="{{ selected_guild.id }}">
+              <label>Kanal</label>
+              {% if channels %}
+                <select name="channel_id">
+                  {% for ch in channels %}
+                    <option value="{{ ch.id }}">#{{ ch.name }}</option>
+                  {% endfor %}
+                </select>
+              {% else %}
+                <input type="text" name="channel_id" placeholder="Kanal ID" required>
+              {% endif %}
+              <label>Mesaj</label>
+              <textarea name="message" rows="3" placeholder="Planlanacak mesaj..."></textarea>
+              <label>Kişiyi Etiketle (bildirim gider)</label>
+              <select name="mention_user">
+                <option value="">— Kişi seçin —</option>
+                {% for m in members %}
+                  <option value="{{ m.id }}">@{{ m.name }}</option>
+                {% endfor %}
+              </select>
+              <label>Tarih ve Saat (yerel saat)</label>
+              <input type="datetime-local" name="send_at" required>
+              <button class="btn primary" type="submit">Planla</button>
+            </form>
+            <hr>
+            <h3>Bekleyen Planlar</h3>
+            {% if scheduled %}
+              <ul class="stack" style="list-style:none;padding:0;">
+                {% for s in scheduled %}
+                  <li style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+                    <span class="small">
+                      <strong>{{ s.send_at_local }}</strong>
+                      <span class="muted">→ {{ s.content[:40] if s.content else 'embed' }}{% if s.mention_user_id %} • @{{ s.mention_user_id }}{% endif %}</span>
+                    </span>
+                    <form method="post" action="{{ url_for('delete_scheduled_message_route', msg_id=s.id) }}" onsubmit="return confirm('Plan silinsin mi?')">
+                      <button class="btn danger small" type="submit">Sil</button>
+                    </form>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted small">Bekleyen plan yok.</p>
+            {% endif %}
+          </div>
         </div>
       </div>
       {% endif %}

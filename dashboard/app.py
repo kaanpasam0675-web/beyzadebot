@@ -481,6 +481,7 @@ def home():
     channels = []
     roles = []
     members = []
+    scheduled = []
     if selected_guild:
         gid = selected_guild["id"]
         commands = database.get_all_custom_commands(gid)
@@ -488,6 +489,18 @@ def home():
         tickets = enrich_tickets(database.get_tickets(gid))
         mod_logs = database.get_mod_logs(gid)
         warnings = database.get_all_warnings(gid)
+        scheduled = database.get_scheduled_messages(gid)
+        try:
+            import datetime as dt
+
+            for s in scheduled:
+                parsed = dt.datetime.fromisoformat(s["send_at"])
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=dt.timezone.utc)
+                s["send_at_local"] = parsed.astimezone().strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            for s in scheduled:
+                s["send_at_local"] = s["send_at"]
         bot = get_bot()
         if bot is not None:
             guild = bot.get_guild(gid)
@@ -557,6 +570,7 @@ def home():
         is_owner=is_owner_session(),
         roles=roles,
         members=members,
+        scheduled=scheduled,
         guild_channel_map=guild_channel_map,
     )
 
@@ -743,6 +757,67 @@ def send_message():
     fut.result(timeout=25)
     if not result.get("ok"):
         return f"Hata: {result.get('error')}", 400
+    return redirect(url_for("home"))
+
+
+@app.route("/schedule-message", methods=["POST"])
+@owner_required
+def schedule_message():
+    """Sahip, botun ileride bir anda mesaj göndermesini planlar."""
+    import datetime as dt
+
+    gid = current_guild_id()
+    channel_id = int(request.form.get("channel_id", 0))
+    content = request.form.get("message", "").strip()
+    msg_type = request.form.get("msg_type", "plain")
+    tag_text = request.form.get("msg_tag", "").strip()
+    send_at_raw = request.form.get("send_at", "").strip()
+
+    if msg_type == "embed":
+        if not request.form.get("embed_description", "").strip():
+            return "Embed açıklaması boş olamaz.", 400
+    elif not content and not tag_text:
+        return "Mesaj boş.", 400
+    if not channel_id:
+        return "Kanal seçin.", 400
+    try:
+        send_at = dt.datetime.fromisoformat(send_at_raw)
+    except ValueError:
+        return "Geçersiz tarih/saat formatı. Örn: 2026-09-21T07:00", 400
+
+    now_local = dt.datetime.now()
+    if send_at <= now_local:
+        return "Planlama zamanı gelecekte olmalı.", 400
+
+    mention_user_id = 0
+    raw_target = request.form.get("mention_user", "").strip()
+    if raw_target.isdigit():
+        mention_user_id = int(raw_target)
+
+    database.add_scheduled_message(
+        gid,
+        channel_id,
+        content,
+        send_at.astimezone(dt.timezone.utc).replace(tzinfo=None).isoformat(),
+        meta={
+            "mention_user_id": mention_user_id,
+            "msg_tag": tag_text,
+            "msg_type": msg_type,
+            "embed_title": request.form.get("embed_title", ""),
+            "embed_description": request.form.get("embed_description", ""),
+            "embed_color": request.form.get("embed_color", "#5865F2"),
+            "embed_image": request.form.get("embed_image", ""),
+            "btn_label": request.form.get("btn_label", ""),
+            "btn_url": request.form.get("btn_url", ""),
+        },
+    )
+    return redirect(url_for("home"))
+
+
+@app.route("/schedule-message/<int:msg_id>/delete", methods=["POST"])
+@owner_required
+def delete_scheduled_message_route(msg_id):
+    database.delete_scheduled_message(msg_id)
     return redirect(url_for("home"))
 
 

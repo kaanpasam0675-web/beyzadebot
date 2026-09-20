@@ -93,6 +93,25 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 UNIQUE (guild_id, name)
             );
+
+            CREATE TABLE IF NOT EXISTS scheduled_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                content TEXT DEFAULT '',
+                mention_user_id INTEGER DEFAULT 0,
+                msg_tag TEXT DEFAULT '',
+                msg_type TEXT NOT NULL DEFAULT 'plain',
+                embed_title TEXT DEFAULT '',
+                embed_description TEXT DEFAULT '',
+                embed_color TEXT DEFAULT '#5865F2',
+                embed_image TEXT DEFAULT '',
+                btn_label TEXT DEFAULT '',
+                btn_url TEXT DEFAULT '',
+                send_at TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL
+            );
             """
         )
         conn.commit()
@@ -501,6 +520,87 @@ def get_reviews_for_ticket(guild_id: int, ticket_id: int):
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+
+
+# ---------- Planlanmış mesajlar ----------
+
+def add_scheduled_message(guild_id, channel_id, content, send_at, meta=None):
+    meta = meta or {}
+    with _lock:
+        conn = _conn()
+        cur = conn.execute(
+            """INSERT INTO scheduled_messages
+               (guild_id, channel_id, content, mention_user_id, msg_tag, msg_type,
+                embed_title, embed_description, embed_color, embed_image,
+                btn_label, btn_url, send_at, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+            (
+                guild_id,
+                channel_id,
+                content,
+                int(meta.get("mention_user_id") or 0),
+                meta.get("msg_tag", ""),
+                meta.get("msg_type", "plain"),
+                meta.get("embed_title", ""),
+                meta.get("embed_description", ""),
+                meta.get("embed_color", "#5865F2"),
+                meta.get("embed_image", ""),
+                meta.get("btn_label", ""),
+                meta.get("btn_url", ""),
+                send_at,
+                datetime.utcnow().isoformat(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return cur.lastrowid
+
+
+def get_scheduled_messages(guild_id=None):
+    """Vadesi dolmamış ve henüz gönderilmemiş planlı mesajları döndürür (en erken önce)."""
+    with _lock:
+        conn = _conn()
+        if guild_id:
+            rows = conn.execute(
+                "SELECT * FROM scheduled_messages WHERE guild_id = ? AND status = 'pending' ORDER BY send_at ASC",
+                (guild_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM scheduled_messages WHERE status = 'pending' ORDER BY send_at ASC"
+            ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+
+def get_due_scheduled_messages(now_iso):
+    with _lock:
+        conn = _conn()
+        rows = conn.execute(
+            "SELECT * FROM scheduled_messages WHERE status = 'pending' AND send_at <= ? ORDER BY send_at ASC",
+            (now_iso,),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+
+def set_scheduled_status(msg_id, status):
+    with _lock:
+        conn = _conn()
+        conn.execute(
+            "UPDATE scheduled_messages SET status = ? WHERE id = ?",
+            (status, msg_id),
+        )
+        conn.commit()
+        conn.close()
+
+
+def delete_scheduled_message(msg_id):
+    with _lock:
+        conn = _conn()
+        conn.execute("DELETE FROM scheduled_messages WHERE id = ?", (msg_id,))
+        conn.commit()
+        conn.close()
 
 
 # ---------- Özel komutlar ----------
