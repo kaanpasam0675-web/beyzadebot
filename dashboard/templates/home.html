@@ -392,6 +392,13 @@
                 <input type="text" name="btn_label" placeholder="Örn: Sunucuya Katıl">
                 <label>Buton Linki (opsiyonel)</label>
                 <input type="url" name="btn_url" placeholder="https://...">
+                <label>Kişiyi Etiketle (bildirim gider)</label>
+                <select name="mention_user">
+                  <option value="">— Kişi seçin —</option>
+                  {% for m in members %}
+                    <option value="{{ m.id }}">@{{ m.name }}</option>
+                  {% endfor %}
+                </select>
                 <button class="btn primary" type="submit">Gönder</button>
               </form>
             </div>

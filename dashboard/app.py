@@ -480,6 +480,7 @@ def home():
     bot_status = {}
     channels = []
     roles = []
+    members = []
     if selected_guild:
         gid = selected_guild["id"]
         commands = database.get_all_custom_commands(gid)
@@ -500,6 +501,11 @@ def home():
                     for r in sorted(guild.roles, key=lambda r: r.position, reverse=True)
                     if not r.is_default() and not r.managed
                 ]
+                members = [
+                    {"id": m.id, "name": m.display_name}
+                    for m in sorted(guild.members, key=lambda m: (m.display_name or "").lower())
+                    if not m.bot
+                ][:300]
                 emojis = [
                     {
                         "name": e.name,
@@ -550,6 +556,7 @@ def home():
         oauth_user=session.get("discord_user"),
         is_owner=is_owner_session(),
         roles=roles,
+        members=members,
         guild_channel_map=guild_channel_map,
     )
 
@@ -678,6 +685,15 @@ def send_message():
     if tag_text:
         tag_prefix = f"{tag_text}\n"
 
+    # Kullanıcı mention: seçilen üye <@ID> olarak mesajın başına eklenir -> bildirim gider
+    mention_target = None
+    raw_target = request.form.get("mention_user", "").strip()
+    try:
+        mention_target = int(raw_target) if raw_target.isdigit() else None
+    except (ValueError, TypeError):
+        mention_target = None
+    mention_prefix = f"<@{mention_target}> " if mention_target else ""
+
     import asyncio
 
     result = {}
@@ -713,10 +729,10 @@ def send_message():
                     text=f"Dashboard'dan • {bot.user.name if bot.user else 'Bot'}",
                     icon_url=bot.user.display_avatar.url if bot.user else None,
                 )
-                final_content = (tag_prefix + content) if (tag_prefix or content) else None
+                final_content = (mention_prefix + tag_prefix + content) if (mention_prefix or tag_prefix or content) else None
                 await channel.send(content=final_content or None, embed=embed, files=files or None, view=view)
             else:
-                final_content = tag_prefix + content
+                final_content = mention_prefix + tag_prefix + content
                 await channel.send(content=final_content or None, files=files or None, view=view)
             result["ok"] = True
         except Exception as e:
