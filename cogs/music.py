@@ -49,6 +49,8 @@ class CtrlButton(discord.ui.Button):
 class Music(commands.Cog):
     """🎵 Müzik sistemi: !çal <isim/link> • !çık • kuyruk ve kontrol paneli"""
 
+    READY = True
+
     def __init__(self, bot):
         self.bot = bot
         self.players = {}  # guild_id -> {"vc", "queue", "now", "playing", "np_msg", "task", "volume"}
