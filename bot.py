@@ -81,6 +81,7 @@ class Bot(commands.Bot):
         await self.load_extension("cogs.custom")
         await self.load_extension("cogs.contract")
         await self.load_extension("cogs.ai")
+        await self.load_extension("cogs.music")
         await self.tree.sync()
         self._scheduled_task = self.loop.create_task(self._scheduled_loop())
 
