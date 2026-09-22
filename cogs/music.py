@@ -76,30 +76,44 @@ class Music(commands.Cog):
 
     async def _search(self, query):
         """YouTube'da arar ve ilk sonucun ses linkini döndürür."""
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-        }
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
-            lambda: self._extract(ydl_opts, query),
+            lambda: self._extract_any(query),
         )
 
-    def _extract(self, ydl_opts, query):
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(query, download=False)
-            if "entries" in info and info["entries"]:
-                info = info["entries"][0]
-            return {
-                "title": info.get("title") or query,
-                "url": info.get("url") or info.get("webpage_url"),
-                "duration": info.get("duration") or 0,
-                "thumbnail": info.get("thumbnail"),
-                "channel": info.get("channel") or "",
+    def _extract_any(self, query):
+        """Farklı YouTube istemcilerini sırayla dener (bot korumasına karşı)."""
+        clients = ["android", "android_vr", "web"]
+        last_err = None
+        for client in clients:
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "noplaylist": True,
+                "quiet": True,
+                "no_warnings": True,
+                "extractor_args": {"youtube": [f"player_client={client}"]},
+                "nocheckcertificate": True,
             }
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(query, download=False)
+                    if "entries" in info and info["entries"]:
+                        info = info["entries"][0]
+                    url = info.get("url") or info.get("webpage_url")
+                    if not url:
+                        raise RuntimeError("Ses bağlantısı bulunamadı")
+                    return {
+                        "title": info.get("title") or query,
+                        "url": url,
+                        "duration": info.get("duration") or 0,
+                        "thumbnail": info.get("thumbnail"),
+                        "channel": info.get("channel") or "",
+                    }
+            except Exception as e:
+                last_err = e
+                continue
+        raise last_err or RuntimeError("Sonuç bulunamadı")
 
     # ---------- oynatıcı döngüsü ----------
 
