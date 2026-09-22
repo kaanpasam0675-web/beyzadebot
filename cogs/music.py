@@ -3,6 +3,7 @@ import os
 
 import discord
 from discord.ext import commands
+import yt_dlp
 
 try:
     import imageio_ffmpeg
@@ -81,8 +82,6 @@ class Music(commands.Cog):
             "quiet": True,
             "no_warnings": True,
         }
-        import yt_dlp
-
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
